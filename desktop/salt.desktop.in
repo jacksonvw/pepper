@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Salt
+GenericName=Comic / Image-Set Viewer
+Comment=Minimal-UI viewer for image archives (.cbz/.cbr/.zip/.tar) and folders
+Exec="@PROJECT_ROOT@/bin/salt" %F
+Icon=salt
+Terminal=false
+StartupNotify=true
+StartupWMClass=Salt
+Categories=Graphics;Viewer;
+MimeType=application/zip;application/x-cbz;application/vnd.comicbook+zip;application/x-cbr;application/vnd.comicbook-rar;application/x-tar;application/gzip;application/x-bzip2;application/x-xz;inode/directory;

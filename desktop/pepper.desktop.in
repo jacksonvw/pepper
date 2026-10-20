@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Pepper
+GenericName=Image Viewer
+Comment=Minimal-UI image viewer
+Exec="@PROJECT_ROOT@/bin/pepper" %F
+Icon=pepper
+Terminal=false
+StartupNotify=true
+StartupWMClass=Pepper
+Categories=Graphics;Viewer;
+MimeType=image/png;image/jpeg;image/gif;image/bmp;image/webp;image/tiff;image/svg+xml;

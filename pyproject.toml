@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=77.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pepper"
+version = "0.2.0"
+description = "Minimal-UI image (Pepper) and comic (Salt) viewers for Fedora KDE Plasma"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.11"
+dependencies = ["PySide6>=6.5"]
+
+[project.optional-dependencies]
+dev = ["pytest>=7"]
+
+[project.scripts]
+pepper = "pepper.main:main"
+salt = "salt.main:main"
+
+[tool.setuptools.packages.find]
+include = ["viewer_core*", "pepper*", "salt*"]
+
+[tool.setuptools.package-data]
+pepper = ["resources/*.svg"]
+salt = ["resources/*.svg"]

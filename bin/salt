@@ -1,0 +1,13 @@
+#!/bin/bash
+# Logs to /tmp/salt.log, truncated on each launch. After a failed run:
+#   tail -n 200 /tmp/salt.log
+#
+# Resolves the suite root from this script's own location, so ~/bin/salt
+# can be a symlink into any checkout (desktop/install.sh makes one).
+#
+# Pins /usr/bin/python3: PySide6 comes from Fedora's python3-pyside6 RPM,
+# which is built for the system interpreter. A different python3 earlier on
+# PATH, such as an activated venv, wouldn't have it.
+ROOT="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
+exec env PYTHONPATH="$ROOT" \
+    nohup /usr/bin/python3 -m salt.main "$@" >/tmp/salt.log 2>&1 &
