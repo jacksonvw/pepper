@@ -45,6 +45,23 @@ def test_load_nonexistent_returns_false(view, tmp_path):
     assert view._has_image is False
 
 
+def test_last_error_set_for_unsupported(view, sample_invalid):
+    assert view.load(str(sample_invalid)) is False
+    assert "junk.png" in view.last_error()
+
+
+def test_last_error_says_when_the_file_is_gone(view, tmp_path):
+    assert view.load(str(tmp_path / "nope.png")) is False
+    assert view.last_error() == "That file no longer exists"
+
+
+def test_last_error_cleared_on_success(view, sample_invalid, sample_pixmap):
+    view.load(str(sample_invalid))
+    assert view.last_error()
+    assert view.load(str(sample_pixmap)) is True
+    assert view.last_error() is None
+
+
 def test_actual_size_sets_identity(view, sample_pixmap):
     assert view.load(str(sample_pixmap))
     view.actual_size()

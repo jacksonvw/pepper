@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import logging
+import os
+from pathlib import Path
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import (
@@ -25,6 +27,21 @@ MIN_SCALE = 0.05
 MAX_SCALE = 50.0
 ZOOM_IN_FACTOR = 1.25
 ZOOM_OUT_FACTOR = 0.8
+
+
+def _unrecognised_reason(path: str) -> str:
+    """Explain a file QImageReader couldn't even identify.
+
+    Qt reports a missing file, an unreadable one and a folder alike as
+    "File not found", so ask the filesystem which it actually is.
+    """
+    p = Path(path)
+    name = p.name or path
+    if not p.exists():
+        return "That file no longer exists"
+    if p.is_file() and not os.access(p, os.R_OK):
+        return f"Couldn't read {name} — permission denied"
+    return f"{name} isn't an image Pepper can open"
 
 
 class ImageView(QGraphicsView):
@@ -57,6 +74,7 @@ class ImageView(QGraphicsView):
         #   None     → manual control (wheel zoom or actual_size); no resize action
         self._fit_mode: str | None = "fit"
         self._has_image: bool = False
+        self._last_error: str | None = None
         self._pending_first_fit: bool = False
         self._last_fit_scale: float = 1.0
         # Track scroll-hand-drag state for the matching mouse release.
@@ -65,14 +83,18 @@ class ImageView(QGraphicsView):
     # -- Public API ------------------------------------------------------
 
     def load(self, path: str) -> bool:
+        self._last_error = None
         reader = QImageReader(path)
         reader.setAutoTransform(True)
         if not reader.format():
             log.info("unsupported format: %s", path)
+            self._last_error = _unrecognised_reason(path)
             return False
         image = reader.read()
         if image.isNull():
             log.info("failed to read: %s (%s)", path, reader.errorString())
+            name = Path(path).name or path
+            self._last_error = f"Couldn't read {name} — {reader.errorString()}"
             return False
         pix = QPixmap.fromImage(image)
         self._pixmap_item.setPixmap(pix)
@@ -129,6 +151,10 @@ class ImageView(QGraphicsView):
             return None
         pix = self._pixmap_item.pixmap()
         return (pix.width(), pix.height())
+
+    def last_error(self) -> str | None:
+        """Why the most recent load() returned False, if it did."""
+        return self._last_error
 
     # -- Internals -------------------------------------------------------
 

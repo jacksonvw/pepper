@@ -14,7 +14,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from PySide6.QtCore import QSettings, Qt, QTimer
+from PySide6.QtCore import QSettings, Qt
 from PySide6.QtGui import (
     QAction,
     QColor,
@@ -116,6 +116,25 @@ class MainWindow(QMainWindow):
         self._image_view.viewport().setAutoFillBackground(False)
         self._image_view.viewport().setAttribute(Qt.WA_TranslucentBackground, True)
 
+        # Overlay for open failures. It sits on top of the image and
+        # survives minimal mode hiding the status bar. Parented to the view,
+        # not its viewport as in Salt: QGraphicsView scrolls by calling
+        # viewport()->scroll(), which drags the viewport's children along,
+        # so the overlay would wander off as soon as the image underneath
+        # was panned. Positioned by hand in resizeEvent — no layout to fight.
+        self._error_label = QLabel(self._image_view)
+        self._error_label.setAlignment(Qt.AlignCenter)
+        self._error_label.setWordWrap(True)
+        self._error_label.setObjectName("errorOverlay")
+        self._error_label.setStyleSheet(
+            "QLabel#errorOverlay {"
+            " background: rgba(20, 20, 20, 220);"
+            " color: rgba(255, 255, 255, 230);"
+            " border: 1px solid rgba(255, 255, 255, 40);"
+            " border-radius: 6px; padding: 14px 18px; }"
+        )
+        self._error_label.hide()
+
         self._build_status_bar()
         self._build_actions()
         self._image_view.zoom_changed.connect(self._update_zoom_label)
@@ -124,7 +143,7 @@ class MainWindow(QMainWindow):
         self._restore_state()
 
         if initial_path is not None:
-            self._open(initial_path, is_initial=True)
+            self._open(initial_path)
 
     # -- UI construction -------------------------------------------------
 
@@ -195,13 +214,18 @@ class MainWindow(QMainWindow):
 
     # -- Open flow -------------------------------------------------------
 
-    def _open(self, path: str, *, is_initial: bool = False) -> None:
+    def _open(self, path: str) -> None:
         ok = self._image_view.load(path)
         if not ok:
-            self.statusBar().showMessage("Unsupported format", 4000)
-            log.warning("could not open: %s", path)
-            if is_initial:
-                QTimer.singleShot(1500, self.close)
+            # Never close on a failed open: a bad initial path used to
+            # close the window 1.5s later, with the reason only in the log.
+            # Stay up and say what went wrong, the way Salt does.
+            reason = self._image_view.last_error() or "Unsupported format"
+            log.warning("could not open %s: %s", path, reason)
+            self.setWindowTitle("Pepper")
+            self._status_left.setText(f"Couldn't open {Path(path).name}")
+            self._status_right.setText("")
+            self._show_error(reason)
             return
 
         size = self._image_view.image_size()
@@ -209,6 +233,7 @@ class MainWindow(QMainWindow):
         name = Path(path).name
         self.setWindowTitle(f"Pepper — {name}")
         self._status_left.setText(f"{name}  ({size_text})" if size_text else name)
+        self._clear_error()
 
         # Optionally resize the window to match the image (VLC-style).
         # Do this BEFORE applying the zoom mode so fit/shrink see the new
@@ -226,6 +251,24 @@ class MainWindow(QMainWindow):
             self._image_view.fit_to_window()
 
         self._update_zoom_label(self._image_view.current_zoom_factor())
+
+    def _show_error(self, message: str) -> None:
+        """Put a failure reason where it can actually be read.
+
+        The status bar is hidden in minimal mode, so the message goes to
+        the centre of the view — otherwise Ctrl+H would swallow the only
+        explanation the user gets. It deliberately skips
+        statusBar().showMessage(): QStatusBar only hides its own labels
+        for a message if they are visible at that moment, so a message
+        posted before the first show, or in minimal mode, ends up drawn
+        over "Couldn't open …".
+        """
+        self._error_label.setText(message)
+        self._error_label.show()
+        self._reposition_error_label()
+
+    def _clear_error(self) -> None:
+        self._error_label.hide()
 
     def _resize_to_image(self, image_w: int, image_h: int) -> None:
         """Resize the window so the image area matches the image's pixel size,
@@ -298,6 +341,27 @@ class MainWindow(QMainWindow):
         menu.addSeparator()
         menu.addAction(self._act_quit)
         menu.exec(ev.globalPos())
+
+    # -- Error overlay placement -----------------------------------------
+
+    def resizeEvent(self, ev) -> None:
+        super().resizeEvent(ev)
+        self._reposition_error_label()
+
+    def _reposition_error_label(self) -> None:
+        # isHidden(), not isVisible(): a child of a not-yet-shown window
+        # is never "visible", and an initial-path failure happens during
+        # __init__ — before the window is up.
+        if self._error_label.isHidden():
+            return
+        view = self._image_view
+        width = min(560, max(240, int(view.width() * 0.8)))
+        self._error_label.setFixedWidth(width)
+        self._error_label.adjustSize()
+        self._error_label.move(
+            max(0, (view.width() - self._error_label.width()) // 2),
+            max(0, (view.height() - self._error_label.height()) // 2),
+        )
 
     # -- Esc-only-when-fullscreen ---------------------------------------
 
@@ -403,3 +467,6 @@ class MainWindow(QMainWindow):
         # native window (fullscreen transitions), which lands here again.
         super().showEvent(ev)
         self._apply_blur()
+        # The view only has real geometry now, so an overlay raised
+        # during __init__ (a failed initial path) gets placed here.
+        self._reposition_error_label()
