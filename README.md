@@ -36,8 +36,7 @@ translucent with KWin's blur behind it.
 ## Status
 
 Working on Fedora 44 with KDE Plasma 6 on Wayland. Missing: packages (both run
-from a checkout) and 7z archives; and Pepper still closes when the image it
-was launched with can't be opened, where Salt already shows the error.
+from a checkout) and 7z archives.
 
 ## Built with
 
