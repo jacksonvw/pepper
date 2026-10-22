@@ -1,9 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none"
-     stroke="#ffffff" stroke-width="2.5" stroke-linecap="round"
-     stroke-linejoin="round">
-  <!-- Stacked pages — three offset rectangles, line art, suggests a comic stack. -->
-  <rect x="14" y="14" width="32" height="40" rx="2"/>
-  <rect x="18" y="10" width="32" height="40" rx="2"/>
-  <rect x="22"  y="6" width="32" height="40" rx="2"/>
+<!-- Salt: a stack of pages. A solid front page, and the top and right edges
+     of two pages behind it, each set back three units so every gap is one. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16">
+  <rect x="2" y="7" width="7" height="8" rx="1" fill="#FFFFFF"/>
+  <path fill="#FFFFFF" d="M 5 6 V 5 Q 5 4 6 4 H 11 Q 12 4 12 5 V 12 H 10 V 6 Z"/>
+  <path fill="#FFFFFF" d="M 8 3 V 2 Q 8 1 9 1 H 14 Q 15 1 15 2 V 9 H 13 V 3 Z"/>
 </svg>
