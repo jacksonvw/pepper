@@ -1,38 +1,77 @@
-# Pepper
+# Pepper and Salt
 
-Pepper, a single-image viewer, and Salt, a comic and image-set viewer: two
-minimal-UI PySide6 apps for Fedora KDE Plasma, sharing one core,
-`viewer_core`.
+A standalone image viewer and a gallery viewer for the Linux desktop, sharing one core.
 
-- **Pepper** opens one image and gets out of the way: no toolbar, no
-  library, just the picture and a status bar you can hide.
-- **Salt** opens a `.cbz`, `.cbr`, `.zip` or `.tar` archive, or a folder of
-  images, and scrolls through it vertically or horizontally. Pages decode
-  on demand, so memory stays flat however long the issue is.
+![Pepper showing an illustration, with its size and zoom in the status bar](docs/screenshots/pepper.png)
 
-Everything else lives in the right-click menu, including Preferences, where
-either window can turn translucent with KWin's blur behind it.
+Pepper opens one image and gets out of the way: no toolbar, no library, just
+the picture and a status bar you can hide. Salt opens a comic archive or a
+folder of images and scrolls through the set, down the page or side by side.
+I built them as a pair for KDE Plasma because I wanted viewers that do one
+thing each and keep everything else out of sight: the rest lives in the
+right-click menu, including Preferences, where either window can turn
+translucent with KWin's blur behind it.
 
-## Setting up a new Fedora machine
+## Features
+
+**Pepper**
+
+- Opens anything Qt and KDE's image plugins can read, including WebP, AVIF, JPEG XL, TIFF, PSD and SVG
+- Zoom with the wheel or the keys, actual size, fit to window, and drag to pan
+- Opens images at fit, shrink-to-fit or actual size, optionally resizing the window to match
+
+**Salt**
+
+- Opens `.cbz`, `.cbr`, `.zip` and `.tar` archives (plain, gzip, bzip2 or xz), or a folder of images, recognising misnamed archives by their contents
+- Reads vertically or side by side, fits to width, height or both, and scrolls continuously or a page at a time
+- Decodes pages on demand, so memory stays flat however long the set is
+- Says why a file won't open, part-downloaded archives included, instead of closing
+
+**Both**
+
+- No menu bar or toolbar: everything is in the right-click menu
+- Fullscreen, and a minimal mode that hides the status bar
+- An optional translucent window with KWin's blur behind it, on Wayland and X11
+
+## Status
+
+Working on Fedora 44 with KDE Plasma 6 on Wayland. Missing: packages (both run
+from a checkout) and 7z archives; and Pepper still closes when the image it
+was launched with can't be opened, where Salt already shows the error.
+
+## Built with
+
+Python 3 and PySide6 (Qt 6), taken from Fedora's RPMs so the windows run on
+Plasma's own Qt: a native Wayland surface, KDE theming and portal file
+dialogs, which a PyPI wheel with its own Qt would lose. KDE's image-format
+plugins add the extra formats, The Unarchiver's `unar` reads CBR, and
+KWindowSystem, called through ctypes, provides the blur.
+
+| Directory | What it is |
+|---|---|
+| `pepper/` | The image viewer |
+| `salt/` | The gallery viewer |
+| `viewer_core/` | Shared appearance settings, KWin blur and the Window preferences group |
+
+## Build and run
 
 Tested on Fedora 44 with KDE Plasma 6 on Wayland.
 
 ```bash
-git clone https://github.com/jacksonvw/pepper.git
-cd pepper
-
 sudo dnf install -y \
     python3-pyside6 qt6-qtwayland qt6-qtsvg qt6-qtimageformats \
     kf6-kimageformats kf6-kwindowsystem unar python3-pytest
 
-desktop/install.sh
+git clone https://github.com/jacksonvw/pepper.git
+cd pepper
+bin/pepper photo.jpg        # an image
+bin/salt comic.cbz          # an archive, or a folder of images
 ```
 
 Everything runs on the system Python against Fedora RPMs, deliberately with
-no venv: PySide6 comes from the RPM built for `/usr/bin/python3`, which is
-why the launchers pin it. That PySide6 also uses Plasma's own Qt, which is
-what gives a native Wayland window, KDE theming and portal file dialogs; a
-PyPI wheel bundles its own Qt and loses all three.
+no venv, which is why the launchers pin `/usr/bin/python3`. Logs go to
+`/tmp/pepper.log` and `/tmp/salt.log`; settings live in `~/.config/pepper/`
+and `~/.config/salt/`.
 
 | Package | Provides |
 |---|---|
@@ -48,12 +87,6 @@ PNG, JPEG, GIF, BMP, WebP, TIFF and SVG, and Salt the default for `.cbz`,
 `.cbr` and tar, gzip, bzip2 and xz files. Plain `.zip` files and folders
 keep their current handlers, with Salt offered under Open With. The script
 needs no root and is safe to re-run, including after moving the checkout.
-Logs go to `/tmp/pepper.log` and `/tmp/salt.log`.
-
-Per-machine state stays out of the repo: settings live in
-`~/.config/pepper/` and `~/.config/salt/`.
-
-## Keys
 
 | Key | Pepper | Salt |
 |---|---|---|
@@ -71,12 +104,16 @@ In Pepper, fit-to-window is in the right-click menu, and dragging pans a
 zoomed-in image. In Salt, orientation, fit and scroll mode are in the
 right-click menu; in page scroll mode the wheel and arrow keys turn pages.
 
-## Tests
+The tests run headless, on Qt's offscreen platform:
 
 ```bash
 /usr/bin/python3 -m pytest
 ```
 
-## License
+## More screenshots
 
-MIT; see [LICENSE](LICENSE).
+![Salt showing a folder of posters side by side](docs/screenshots/salt.png)
+
+---
+
+Jackson Vander Wal · [jacksonv.com](https://jacksonv.com)
