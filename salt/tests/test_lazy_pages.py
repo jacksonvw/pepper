@@ -143,3 +143,13 @@ def test_incomplete_download_message_reaches_the_window(qapp, sparse_archive):
     win = MainWindow(initial_path=str(sparse_archive))
     assert "incomplete download" in win._error_label.text()
     win.close()
+
+
+def test_tests_keep_out_of_the_real_config(qapp, tmp_path_factory):
+    """Saved geometry and config.toml land in scratch dirs, not ~/.config."""
+    from salt.core import config
+    scratch = str(tmp_path_factory.getbasetemp())
+    win = MainWindow()
+    assert win._settings().fileName().startswith(scratch)
+    assert str(config._default_path()).startswith(scratch)
+    win.close()

@@ -41,3 +41,13 @@ def test_error_overlay_clears_after_a_good_open(qapp, sample_invalid, sample_pix
     assert win._error_label.isHidden()
     assert "red.png" in win.windowTitle()
     win.close()
+
+
+def test_tests_keep_out_of_the_real_config(qapp, tmp_path_factory):
+    """Saved geometry and config.toml land in scratch dirs, not ~/.config."""
+    from pepper.core import config
+    scratch = str(tmp_path_factory.getbasetemp())
+    win = MainWindow()
+    assert win._settings().fileName().startswith(scratch)
+    assert str(config._default_path()).startswith(scratch)
+    win.close()

@@ -15,6 +15,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from pathlib import Path
 
 import pytest
+from PySide6.QtCore import QSettings
 from PySide6.QtGui import QColor, QImage
 from PySide6.QtWidgets import QApplication
 
@@ -25,12 +26,25 @@ def qapp():
     yield app
 
 
-@pytest.fixture
-def tmp_config_dir(tmp_path: Path, monkeypatch):
-    """Redirect pepper.core.config._CONFIG_PATH at the target tmp dir."""
-    cfg_path = tmp_path / "config.toml"
+@pytest.fixture(scope="session", autouse=True)
+def isolated_settings(tmp_path_factory):
+    """Point QSettings at a scratch dir for the whole run.
+
+    MainWindow saves its geometry on close, so without this every test
+    run overwrote the real ~/.config/pepper/pepper.conf.
+    """
+    QSettings.setPath(
+        QSettings.NativeFormat, QSettings.UserScope,
+        str(tmp_path_factory.mktemp("settings")),
+    )
+
+
+@pytest.fixture(autouse=True)
+def isolated_config(tmp_path: Path, monkeypatch) -> Path:
+    """Give each test a fresh config.toml instead of the user's own."""
     import pepper.core.config as cfgmod
-    monkeypatch.setattr(cfgmod, "_CONFIG_PATH", cfg_path)
+    cfg_path = tmp_path / "isolated-config" / "config.toml"
+    monkeypatch.setattr(cfgmod, "_default_path", lambda: cfg_path)
     return cfg_path
 
 

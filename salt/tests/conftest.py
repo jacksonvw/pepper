@@ -9,6 +9,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from pathlib import Path
 
 import pytest
+from PySide6.QtCore import QSettings
 from PySide6.QtGui import QColor, QImage
 from PySide6.QtWidgets import QApplication
 
@@ -17,6 +18,32 @@ from PySide6.QtWidgets import QApplication
 def qapp():
     app = QApplication.instance() or QApplication([])
     yield app
+
+
+@pytest.fixture(scope="session", autouse=True)
+def isolated_settings(tmp_path_factory):
+    """Point QSettings at a scratch dir for the whole run.
+
+    MainWindow saves its geometry on close, so without this every test
+    run overwrote the real ~/.config/salt/salt.conf.
+    """
+    QSettings.setPath(
+        QSettings.NativeFormat, QSettings.UserScope,
+        str(tmp_path_factory.mktemp("settings")),
+    )
+
+
+@pytest.fixture(autouse=True)
+def isolated_config(tmp_path: Path, monkeypatch) -> Path:
+    """Give each test a fresh config.toml instead of the user's own.
+
+    The right-click mode changes write it, so this also keeps tests from
+    rewriting the real ~/.config/salt/config.toml.
+    """
+    import salt.core.config as cfgmod
+    cfg_path = tmp_path / "isolated-config" / "config.toml"
+    monkeypatch.setattr(cfgmod, "_default_path", lambda: cfg_path)
+    return cfg_path
 
 
 @pytest.fixture
