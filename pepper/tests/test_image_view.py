@@ -55,6 +55,21 @@ def test_last_error_says_when_the_file_is_gone(view, tmp_path):
     assert view.last_error() == "That file no longer exists"
 
 
+def test_last_error_names_an_image_over_the_decode_limit(view, tmp_path):
+    from PySide6.QtGui import QColor, QImage, QImageReader
+    img = QImage(1000, 1000, QImage.Format_RGB32)
+    img.fill(QColor(9, 9, 9))
+    big = tmp_path / "big.png"
+    assert img.save(str(big), "PNG")
+    saved = QImageReader.allocationLimit()
+    QImageReader.setAllocationLimit(1)  # 1 MB; this image needs ~4 MB
+    try:
+        assert view.load(str(big)) is False
+    finally:
+        QImageReader.setAllocationLimit(saved)
+    assert view.last_error() == "big.png is too large to open (1000×1000)"
+
+
 def test_last_error_cleared_on_success(view, sample_invalid, sample_pixmap):
     view.load(str(sample_invalid))
     assert view.last_error()

@@ -21,6 +21,8 @@ from PySide6.QtWidgets import (
     QGraphicsView,
 )
 
+from viewer_core.core.decoding import too_large
+
 log = logging.getLogger(__name__)
 
 MIN_SCALE = 0.05
@@ -90,11 +92,18 @@ class ImageView(QGraphicsView):
             log.info("unsupported format: %s", path)
             self._last_error = _unrecognised_reason(path)
             return False
+        size = reader.size()
         image = reader.read()
         if image.isNull():
             log.info("failed to read: %s (%s)", path, reader.errorString())
             name = Path(path).name or path
-            self._last_error = f"Couldn't read {name} — {reader.errorString()}"
+            if too_large(size):
+                self._last_error = (
+                    f"{name} is too large to open "
+                    f"({size.width()}×{size.height()})"
+                )
+            else:
+                self._last_error = f"Couldn't read {name} — {reader.errorString()}"
             return False
         pix = QPixmap.fromImage(image)
         self._pixmap_item.setPixmap(pix)

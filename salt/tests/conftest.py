@@ -13,10 +13,13 @@ from PySide6.QtCore import QSettings
 from PySide6.QtGui import QColor, QImage
 from PySide6.QtWidgets import QApplication
 
+from viewer_core.core.decoding import raise_decode_limit
+
 
 @pytest.fixture(scope="session")
 def qapp():
     app = QApplication.instance() or QApplication([])
+    raise_decode_limit()  # as both apps' main() does
     yield app
 
 

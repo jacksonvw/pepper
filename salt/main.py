@@ -12,6 +12,8 @@ from pathlib import Path
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication
 
+from viewer_core.core.decoding import raise_decode_limit
+
 log = logging.getLogger("salt")
 
 
@@ -33,6 +35,7 @@ def main() -> None:
     app = QApplication(sys.argv)
     app.setApplicationName("Salt")
     app.setOrganizationName("salt")
+    raise_decode_limit()
 
     icon_path = Path(__file__).parent / "resources" / "salt.svg"
     if icon_path.exists():
