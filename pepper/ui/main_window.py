@@ -115,6 +115,12 @@ class MainWindow(QMainWindow):
         # are the only background painters.
         self._image_view.viewport().setAutoFillBackground(False)
         self._image_view.viewport().setAttribute(Qt.WA_TranslucentBackground, True)
+        # Drops belong to the window. QGraphicsView accepts drops on itself
+        # and its viewport, and its scene then refuses every drag move (no
+        # item takes drops), so a file dragged onto the image was turned
+        # away before dropEvent ever saw it.
+        self._image_view.setAcceptDrops(False)
+        self._image_view.viewport().setAcceptDrops(False)
 
         # Overlay for open failures. It sits on top of the image and
         # survives minimal mode hiding the status bar. Parented to the view,

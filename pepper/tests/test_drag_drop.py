@@ -1,17 +1,24 @@
 """Tests for drag-drop handling on MainWindow.
 
-The drop logic is exercised via `_handle_dropped_paths` rather than a
-synthetic QDropEvent — manually-constructed QDropEvents can segfault
-when their `acceptProposedAction()` is called outside Qt's drag
-machinery. The drag-enter test uses a real QDragEnterEvent which is
-safe because we only inspect mime data.
+Most of the drop logic is exercised via `_handle_dropped_paths`. Calling
+a handler directly with a hand-built QDropEvent can segfault once it calls
+`acceptProposedAction()`, so the one end-to-end test instead hands its
+events to QApplication.sendEvent at the view's viewport, which is where
+Qt's own drag machinery delivers them and which routes them on from there.
 """
 
 from __future__ import annotations
 
 import pytest
-from PySide6.QtCore import QMimeData, QPoint, Qt, QUrl
-from PySide6.QtGui import QColor, QDragEnterEvent, QImage
+from PySide6.QtCore import QMimeData, QPoint, QPointF, Qt, QUrl
+from PySide6.QtGui import (
+    QColor,
+    QDragEnterEvent,
+    QDragMoveEvent,
+    QDropEvent,
+    QImage,
+)
+from PySide6.QtWidgets import QApplication
 
 from pepper.ui.main_window import MainWindow
 
@@ -68,3 +75,25 @@ def test_drag_enter_accepts_urls(window, sample_pixmap):
     )
     window.dragEnterEvent(ev)
     assert ev.isAccepted()
+
+
+def test_drop_onto_the_image_reaches_the_window(window, sample_pixmap):
+    """Drag events sent where Qt sends them: to the view's viewport.
+
+    The view used to claim the drag and then refuse every move, so a real
+    drop onto the image never reached MainWindow.dropEvent.
+    """
+    mime = QMimeData()
+    mime.setUrls([QUrl.fromLocalFile(str(sample_pixmap))])
+    vp = window._image_view.viewport()
+    pos = QPoint(vp.width() // 2, vp.height() // 2)
+    QApplication.sendEvent(
+        vp, QDragEnterEvent(pos, Qt.CopyAction, mime, Qt.LeftButton, Qt.NoModifier)
+    )
+    move = QDragMoveEvent(pos, Qt.CopyAction, mime, Qt.LeftButton, Qt.NoModifier)
+    QApplication.sendEvent(vp, move)
+    assert move.isAccepted()
+    QApplication.sendEvent(
+        vp, QDropEvent(QPointF(pos), Qt.CopyAction, mime, Qt.LeftButton, Qt.NoModifier)
+    )
+    assert "red.png" in window.windowTitle()
