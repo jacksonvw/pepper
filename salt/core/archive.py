@@ -81,6 +81,13 @@ class ImageEntry:
 
 def _is_image(name: str) -> bool:
     n = name.lower()
+    # Zips made on a Mac carry AppleDouble resource forks such as
+    # "__MACOSX/._page01.jpg": image-named, but not images. They sorted
+    # ahead of the real pages, failed the first-page probe, and got the
+    # whole archive rejected.
+    parts = n.replace("\\", "/").split("/")
+    if "__macosx" in parts or parts[-1].startswith("._"):
+        return False
     return any(n.endswith(s) for s in _IMAGE_SUFFIXES)
 
 

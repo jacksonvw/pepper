@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from salt.core.archive import open_source
+from salt.core.archive import open_page_source, open_source
 
 
 def test_open_directory(comic_dir):
@@ -52,3 +52,16 @@ def test_open_empty_directory(tmp_path):
     empty = tmp_path / "empty"
     empty.mkdir()
     assert open_source(empty) == []
+
+
+def test_mac_resource_forks_are_not_pages(tmp_path, sample_image_bytes):
+    """A zip made on a Mac: AppleDouble entries sorted first and broke it."""
+    import zipfile
+    z = tmp_path / "from-a-mac.cbz"
+    with zipfile.ZipFile(z, "w") as zf:
+        for i in (1, 2):
+            zf.writestr(f"page{i}.png", sample_image_bytes)
+            zf.writestr(f"__MACOSX/._page{i}.png", b"\x00\x05\x16\x07 not an image")
+    (tmp_path / "._stray.png").write_bytes(b"\x00\x05\x16\x07 not an image")
+    assert [e.name for e in open_source(z)] == ["page1.png", "page2.png"]
+    assert "._stray.png" not in open_page_source(tmp_path).names
