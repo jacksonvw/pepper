@@ -12,13 +12,14 @@ from __future__ import annotations
 import logging
 from collections import OrderedDict
 
-from PySide6.QtCore import QSize, Qt, QTimer, Signal
+from PySide6.QtCore import QCoreApplication, QEvent, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QPixmap
 from PySide6.QtWidgets import (
     QBoxLayout,
     QFrame,
     QLabel,
     QScrollArea,
+    QScrollBar,
     QWidget,
 )
 
@@ -93,6 +94,9 @@ class ComicView(QScrollArea):
         self._scroll_mode: str = "continuous"
         self._page_gap: int = 8
         self._current_page: int = 0
+        # Set while we move the view ourselves, so scrollContentsBy doesn't
+        # decode pages at the intermediate positions or re-derive the page.
+        self._repositioning: bool = False
 
         self._rescale_timer = QTimer(self)
         self._rescale_timer.setSingleShot(True)
@@ -130,7 +134,7 @@ class ComicView(QScrollArea):
             return
         self._orientation = orientation
         self._apply_layout_direction()
-        self._invalidate_and_refresh()
+        self._reflow()
 
     def set_fit_mode(self, mode: str) -> None:
         if mode not in VALID_FITS or mode == self._fit_mode:
@@ -143,7 +147,7 @@ class ComicView(QScrollArea):
             return
         self._scroll_mode = mode
         self._rebuild_layout()
-        self._invalidate_and_refresh()
+        self._reflow()
 
     def set_page_gap(self, gap: int) -> None:
         gap = max(0, int(gap))
@@ -228,9 +232,11 @@ class ComicView(QScrollArea):
 
         self._rebuild_layout()
         self._refresh(force=True)
+        # Start at the top, not at whatever offset the last source was
+        # scrolled to. This also emits page_changed.
+        self._apply_current_page()
 
         self.source_loaded.emit(len(self._labels), source)
-        self.page_changed.emit(1, len(self._labels))
         return True
 
     # -- Decoding / cache ------------------------------------------------
@@ -371,17 +377,14 @@ class ComicView(QScrollArea):
         if self._scroll_mode == "page":
             return [self._current_page]
 
-        horizontal = self._orientation == "horizontal"
-        bar = self.horizontalScrollBar() if horizontal else self.verticalScrollBar()
         vw, vh = self._viewport_size()
-        start = bar.value()
-        extent = vw if horizontal else vh
+        start = self._scroll_bar().value()
+        extent = vw if self._orientation == "horizontal" else vh
 
         first = last = None
-        for i, label in enumerate(self._labels):
-            geo = label.geometry()
-            lo = geo.x() if horizontal else geo.y()
-            hi = lo + (geo.width() if horizontal else geo.height())
+        for i in range(n):
+            lo, length = self._page_span(i)
+            hi = lo + length
             if hi <= start or lo >= start + extent:
                 continue
             if first is None:
@@ -411,6 +414,23 @@ class ComicView(QScrollArea):
         """Decode the pages near the viewport and show them."""
         if self._source is None or not self._labels:
             return
+        self._apply_placeholders(force=force)
+
+        wanted = self._visible_indices()
+        # Promote the pages we're about to show *before* decoding new
+        # ones, so a page that is still on screen can't be the LRU victim
+        # of the very decode that was meant to fill in around it.
+        for i in wanted:
+            self._touch(i)
+        self._ensure_cached(wanted)
+        for i in wanted:
+            pix = self._cache.get(i)
+            if pix is not None:
+                self._labels[i].setFixedSize(pix.size())
+                self._labels[i].setPixmap(pix)
+
+    def _apply_placeholders(self, *, force: bool = False) -> None:
+        """Size every undecoded label from the current placeholder."""
         self._recompute_placeholder()
 
         # Give undecoded labels their placeholder geometry *before* asking
@@ -433,25 +453,102 @@ class ComicView(QScrollArea):
             if changed:
                 self._layout.activate()
 
-        wanted = self._visible_indices()
-        # Promote the pages we're about to show *before* decoding new
-        # ones, so a page that is still on screen can't be the LRU victim
-        # of the very decode that was meant to fill in around it.
-        for i in wanted:
-            self._touch(i)
-        self._ensure_cached(wanted)
-        for i in wanted:
-            pix = self._cache.get(i)
-            if pix is not None:
-                self._labels[i].setFixedSize(pix.size())
-                self._labels[i].setPixmap(pix)
+    def _reflow(self) -> None:
+        """Rescale for a new orientation or scroll mode, from the current
+        page's start."""
+        self._cache.clear()
+        self._apply_placeholders(force=True)
+        self._apply_current_page()
 
     def _invalidate_and_refresh(self) -> None:
-        """Drop scaled pixmaps (viewport or fit changed) and redecode."""
-        self._cache.clear()
-        self._refresh(force=True)
+        """Rescale for a new size or fit, keeping the reader's place.
 
-    # -- Page navigation (only meaningful in page scroll mode) -----------
+        Every page changes size, so the old scroll offset would land on a
+        different page — toggling fullscreen used to jump several pages.
+        """
+        page, fraction = self._reading_position()
+        self._cache.clear()
+        self._repositioning = True
+        try:
+            self._apply_placeholders(force=True)
+            self._settle_layout()
+            if self._labels and self._scroll_mode == "page":
+                bar = self.verticalScrollBar()
+                bar.setValue(round(fraction * bar.maximum()))
+            elif self._labels:
+                start, extent = self._page_span(page)
+                self._scroll_bar().setValue(start + round(fraction * extent))
+        finally:
+            self._repositioning = False
+        self._refresh()
+
+    def _reading_position(self) -> tuple[int, float]:
+        """The current page, and how far into it the view is (0..1)."""
+        page = self._current_page
+        if not self._labels:
+            return page, 0.0
+        if self._scroll_mode == "page":
+            bar = self.verticalScrollBar()
+            return page, bar.value() / bar.maximum() if bar.maximum() > 0 else 0.0
+        start, extent = self._page_span(page)
+        if extent <= 0:
+            return page, 0.0
+        offset = (self._scroll_bar().value() - start) / extent
+        return page, min(max(offset, 0.0), 1.0)
+
+    def _settle_layout(self) -> None:
+        """Run pending layout work now.
+
+        Page positions and scrollbar ranges only catch up when the posted
+        LayoutRequest is processed, and scrolling to a page before then
+        clamps to the old range.
+        """
+        QCoreApplication.sendPostedEvents(None, QEvent.LayoutRequest)
+
+    # -- Positions along the reading axis --------------------------------
+
+    def _scroll_bar(self) -> QScrollBar:
+        """The scrollbar that runs along the reading direction."""
+        if self._orientation == "horizontal":
+            return self.horizontalScrollBar()
+        return self.verticalScrollBar()
+
+    def _page_span(self, index: int) -> tuple[int, int]:
+        """Where a page starts along the reading axis, and its length."""
+        geo = self._labels[index].geometry()
+        if self._orientation == "horizontal":
+            return geo.x(), geo.width()
+        return geo.y(), geo.height()
+
+    def _sync_current_page(self) -> None:
+        """Continuous mode: make the page at the top of the view current.
+
+        PgDown, PgUp and the page counter all work from the current page,
+        so it has to follow the wheel and the scrollbar too, not just the
+        paging keys.
+        """
+        bar = self._scroll_bar()
+        pos = bar.value()
+        if bar.maximum() > 0 and pos >= bar.maximum():
+            # At the very end the last page may be too short to reach the
+            # top of the view, but it is the one being read.
+            current = len(self._labels) - 1
+        else:
+            current = None
+            for i in range(len(self._labels)):
+                start, extent = self._page_span(i)
+                if start > pos:
+                    break
+                # Zero-length labels haven't been laid out yet.
+                if extent > 0:
+                    current = i
+            if current is None:
+                return
+        if current != self._current_page:
+            self._current_page = current
+            self.page_changed.emit(current + 1, len(self._labels))
+
+    # -- Page navigation -------------------------------------------------
 
     def next_page(self) -> None:
         if not self._labels:
@@ -464,20 +561,50 @@ class ComicView(QScrollArea):
     def prev_page(self) -> None:
         if not self._labels:
             return
+        if self._scroll_mode == "continuous":
+            # Partway down a page, "previous" first means this page's top.
+            start, _ = self._page_span(self._current_page)
+            if self._scroll_bar().value() > start:
+                self._apply_current_page()
+                return
         if self._current_page <= 0:
             return
         self._current_page -= 1
         self._apply_current_page()
 
-    def _apply_current_page(self) -> None:
-        if self._scroll_mode == "page":
-            self._rebuild_layout()
-            self._refresh()
-        else:
-            # Continuous: scroll to bring the current label into view.
-            self._refresh()
-            label = self._labels[self._current_page]
-            self.ensureWidgetVisible(label, 0, 0)
+    def _turn_back(self) -> None:
+        """Page mode: the previous page, shown from its bottom, for
+        reading upwards with the wheel or the Up key."""
+        if self._current_page <= 0:
+            return
+        self._current_page -= 1
+        self._apply_current_page(at_end=True)
+
+    def _apply_current_page(self, *, at_end: bool = False) -> None:
+        """Show the current page from its start (or, in page mode, its end).
+
+        Continuous mode lines the page's start up with the top of the
+        view. It used ensureWidgetVisible(), which centres anything taller
+        than the view, so PgDown skipped the top of every fit-to-width page.
+        """
+        if not self._labels:
+            return
+        self._repositioning = True
+        try:
+            if self._scroll_mode == "page":
+                self._rebuild_layout()
+                self._refresh()
+                self._settle_layout()
+                self.horizontalScrollBar().setValue(0)
+                bar = self.verticalScrollBar()
+                bar.setValue(bar.maximum() if at_end else 0)
+            else:
+                self._settle_layout()
+                start, _ = self._page_span(self._current_page)
+                self._scroll_bar().setValue(start)
+        finally:
+            self._repositioning = False
+        self._refresh()
         self.page_changed.emit(self._current_page + 1, len(self._labels))
 
     # -- Layout internals ------------------------------------------------
@@ -506,22 +633,25 @@ class ComicView(QScrollArea):
         self._apply_layout_direction()
         self._layout.setSpacing(self._page_gap)
         if self._scroll_mode == "page":
-            if 0 <= self._current_page < len(self._labels):
-                self._layout.addWidget(
-                    self._labels[self._current_page], 0, Qt.AlignCenter
-                )
-            self._layout.addStretch(1)
+            shown = self._labels[self._current_page:self._current_page + 1]
         else:
-            for label in self._labels:
-                self._layout.addWidget(label, 0, Qt.AlignCenter)
-            self._layout.addStretch(1)
+            shown = self._labels
+        for label in shown:
+            self._layout.addWidget(label, 0, Qt.AlignCenter)
+            # addWidget() only queues the show of a reparented widget, and
+            # a hidden label takes no space, so page positions and the
+            # scroll range would lag behind the page we scroll to next.
+            label.show()
+        self._layout.addStretch(1)
 
     # -- Events ----------------------------------------------------------
 
     def scrollContentsBy(self, dx: int, dy: int) -> None:
         super().scrollContentsBy(dx, dy)
-        if self._source is not None:
+        if self._source is not None and not self._repositioning:
             self._refresh()
+            if self._scroll_mode == "continuous":
+                self._sync_current_page()
 
     def resizeEvent(self, ev) -> None:
         super().resizeEvent(ev)
@@ -530,25 +660,44 @@ class ComicView(QScrollArea):
             self._rescale_timer.start()
 
     def wheelEvent(self, ev) -> None:
-        # Page mode: wheel turns the page.
+        # Page mode: the wheel scrolls through a page taller than the view
+        # and turns the page only at its bottom or top. Turning on every
+        # notch left the rest of a fit-to-width page out of reach.
         if self._scroll_mode == "page" and self._labels:
-            if ev.angleDelta().y() < 0:
+            dy = ev.angleDelta().y()
+            bar = self.verticalScrollBar()
+            if dy < 0 and bar.value() >= bar.maximum():
                 self.next_page()
-            elif ev.angleDelta().y() > 0:
-                self.prev_page()
-            ev.accept()
-            return
+                ev.accept()
+                return
+            if dy > 0 and bar.value() <= bar.minimum():
+                self._turn_back()
+                ev.accept()
+                return
         super().wheelEvent(ev)
 
     def keyPressEvent(self, ev) -> None:
-        # Page-mode shortcuts (in addition to whatever MainWindow wires).
+        # Page-mode keys (in addition to whatever MainWindow wires). Down
+        # and Up scroll like the wheel, turning only at the page's edges;
+        # the rest turn the page straight away.
         if self._scroll_mode == "page":
             key = ev.key()
+            bar = self.verticalScrollBar()
+            if key == Qt.Key_Down and bar.value() < bar.maximum():
+                super().keyPressEvent(ev)
+                return
+            if key == Qt.Key_Up and bar.value() > bar.minimum():
+                super().keyPressEvent(ev)
+                return
             if key in (Qt.Key_Right, Qt.Key_Down, Qt.Key_PageDown, Qt.Key_Space):
                 self.next_page()
                 ev.accept()
                 return
-            if key in (Qt.Key_Left, Qt.Key_Up, Qt.Key_PageUp, Qt.Key_Backspace):
+            if key == Qt.Key_Up:
+                self._turn_back()
+                ev.accept()
+                return
+            if key in (Qt.Key_Left, Qt.Key_PageUp, Qt.Key_Backspace):
                 self.prev_page()
                 ev.accept()
                 return
