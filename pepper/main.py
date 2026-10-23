@@ -35,11 +35,16 @@ def main() -> None:
     app = QApplication(sys.argv)
     app.setApplicationName("Pepper")
     app.setOrganizationName("pepper")
+    # The Wayland app_id; it has to match the installed pepper.desktop.
+    app.setDesktopFileName("pepper")
     raise_decode_limit()
 
+    # By theme name, so KWin draws the icon itself from the copy that
+    # desktop/install.sh puts in hicolor. An icon from a file reaches it
+    # as pixels with the alpha misread, which fringes every anti-aliased
+    # edge black. The bundled file is the fallback when not installed.
     icon_path = Path(__file__).parent / "resources" / "pepper.svg"
-    if icon_path.exists():
-        app.setWindowIcon(QIcon(str(icon_path)))
+    app.setWindowIcon(QIcon.fromTheme("pepper", QIcon(str(icon_path))))
 
     # Import here so logging is configured before any UI module loads.
     from pepper.ui.main_window import MainWindow

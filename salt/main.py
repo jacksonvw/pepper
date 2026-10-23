@@ -35,11 +35,16 @@ def main() -> None:
     app = QApplication(sys.argv)
     app.setApplicationName("Salt")
     app.setOrganizationName("salt")
+    # The Wayland app_id; it has to match the installed salt.desktop.
+    app.setDesktopFileName("salt")
     raise_decode_limit()
 
+    # By theme name, so KWin draws the icon itself from the copy that
+    # desktop/install.sh puts in hicolor. An icon from a file reaches it
+    # as pixels with the alpha misread, which fringes every anti-aliased
+    # edge black. The bundled file is the fallback when not installed.
     icon_path = Path(__file__).parent / "resources" / "salt.svg"
-    if icon_path.exists():
-        app.setWindowIcon(QIcon(str(icon_path)))
+    app.setWindowIcon(QIcon.fromTheme("salt", QIcon(str(icon_path))))
 
     from salt.ui.main_window import MainWindow
 
