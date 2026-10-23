@@ -101,7 +101,9 @@ needs no root and is safe to re-run, including after moving the checkout.
 
 In Pepper, fit-to-window is in the right-click menu, and dragging pans a
 zoomed-in image. In Salt, orientation, fit and scroll mode are in the
-right-click menu; in page scroll mode the wheel and arrow keys turn pages.
+right-click menu. In page scroll mode the wheel and the Up/Down keys scroll
+through a page and turn it at the top or bottom, and the other arrow keys
+turn it straight away.
 
 The tests run headless, on Qt's offscreen platform:
 
