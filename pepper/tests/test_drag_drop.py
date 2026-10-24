@@ -54,17 +54,19 @@ def test_drop_first_valid_wins(window, sample_invalid, sample_pixmap, tmp_path):
     assert window._image_view.image_size() == (100, 60)
 
 
-def test_drop_all_invalid_shows_status(window, sample_invalid):
+def test_drop_all_invalid_says_why(window, sample_invalid):
+    """In the overlay: a status-bar message vanished in minimal mode."""
     ok = window._handle_dropped_paths([str(sample_invalid)])
     assert ok is False
     assert window._image_view.image_size() is None
-    assert window.statusBar().currentMessage() == "Unsupported format"
+    assert not window._error_label.isHidden()
+    assert "junk.png" in window._error_label.text()
 
 
-def test_drop_empty_list_shows_status(window):
+def test_drop_of_no_local_files_says_why(window):
     ok = window._handle_dropped_paths([])
     assert ok is False
-    assert window.statusBar().currentMessage() == "Unsupported format"
+    assert window._error_label.text() == "Pepper can only open files on this computer"
 
 
 def test_drag_enter_accepts_urls(window, sample_pixmap):

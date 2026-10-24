@@ -327,7 +327,12 @@ class MainWindow(QMainWindow):
             if QImageReader.imageFormat(path):
                 self._open(path)
                 return True
-        self.statusBar().showMessage("Unsupported format", 4000)
+        # Nothing readable: open the first one anyway, so the overlay says
+        # why. A status-bar message vanished entirely in minimal mode.
+        if paths:
+            self._open(paths[0])
+        else:
+            self._show_error("Pepper can only open files on this computer")
         return False
 
     # -- Context menu ----------------------------------------------------

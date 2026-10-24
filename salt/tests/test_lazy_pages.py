@@ -233,3 +233,14 @@ def test_an_archive_with_nothing_in_it_is_still_empty(view, tmp_path):
         zf.writestr("readme.txt", "no pages")
     assert view.load_source(str(empty)) is False
     assert view.last_error() == "No readable images in there"
+
+
+def test_failed_drops_say_why(qapp, tmp_path):
+    win = MainWindow()
+    assert win._handle_dropped_paths([]) is False
+    assert win._error_label.text() == (
+        "Salt can only open files and folders on this computer"
+    )
+    assert win._handle_dropped_paths([str(tmp_path / "gone.cbz")]) is False
+    assert win._error_label.text() == "That file or folder no longer exists"
+    win.close()

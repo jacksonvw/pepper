@@ -252,7 +252,12 @@ class MainWindow(QMainWindow):
             if Path(path).exists():
                 self._open(path)
                 return True
-        self.statusBar().showMessage("Unsupported source", 4000)
+        # Nothing to open: say why in the overlay, which, unlike a
+        # status-bar message, survives minimal mode.
+        if paths:
+            self._open(paths[0])
+        else:
+            self._show_error("Salt can only open files and folders on this computer")
         return False
 
     # -- Right-click menu (orientation/fit/scroll all live here) ---------
