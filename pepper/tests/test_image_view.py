@@ -158,3 +158,64 @@ def test_shrink_fits_oversized_image(view, qapp, tmp_path):
     # Scaled down — transform should be < 1.0
     assert view.transform().m11() < 1.0
     assert view._fit_mode == "shrink"
+
+
+def _need_svg():
+    from PySide6.QtGui import QImageReader
+    if b"svg" not in [bytes(f) for f in QImageReader.supportedImageFormats()]:
+        pytest.skip("needs Qt's SVG image plugin (qt6-qtsvg)")
+
+
+def _drawn_size(view):
+    rect = view.mapFromScene(view._pixmap_item.sceneBoundingRect()).boundingRect()
+    return rect.width(), rect.height()
+
+
+def test_fit_shows_the_whole_image_not_just_its_opaque_part(view, tmp_path):
+    """fitInView(item) fitted the opaque pixels, blowing up padded images."""
+    from PySide6.QtGui import QColor, QImage, QPainter
+    img = QImage(200, 200, QImage.Format_ARGB32)
+    img.fill(QColor(0, 0, 0, 0))
+    p = QPainter(img)
+    p.fillRect(75, 75, 50, 50, QColor(220, 30, 30))
+    p.end()
+    padded = tmp_path / "padded.png"
+    assert img.save(str(padded), "PNG")
+    assert view.load(str(padded))
+    view.fit_to_window()
+    w, h = _drawn_size(view)
+    vp = view.viewport()
+    assert w <= vp.width() and h <= vp.height()
+    assert max(w / vp.width(), h / vp.height()) > 0.9
+
+
+def test_svg_renders_sharp_but_keeps_its_size(view, tmp_path):
+    """A 16-pixel icon used to be a 16-pixel bitmap stretched to fit."""
+    _need_svg()
+    icon = tmp_path / "icon.svg"
+    icon.write_text(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" '
+        'viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="#e8553a"/></svg>'
+    )
+    assert view.load(str(icon))
+    assert view.image_size() == (16, 16)
+    assert view._pixmap_item.pixmap().width() >= 400
+    view.fit_to_window()
+    w, h = _drawn_size(view)
+    assert max(w / view.viewport().width(), h / view.viewport().height()) > 0.9
+    # Actual size is still 16 pixels across: 1:1 on a 16×16 logical item.
+    view.actual_size()
+    assert view.transform().m11() == pytest.approx(1.0)
+    assert view._pixmap_item.boundingRect().size().toTuple() == (16.0, 16.0)
+
+
+def test_a_huge_svg_canvas_opens(view, tmp_path):
+    """Rendered at its nominal size it was far over the decode limit."""
+    _need_svg()
+    huge = tmp_path / "huge.svg"
+    huge.write_text(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="60000" height="60000" '
+        'viewBox="0 0 10 10"><rect width="10" height="10" fill="#246"/></svg>'
+    )
+    assert view.load(str(huge)), view.last_error()
+    assert view.image_size() == (60000, 60000)

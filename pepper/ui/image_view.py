@@ -6,9 +6,10 @@ import logging
 import os
 from pathlib import Path
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QSize, Qt, Signal
 from PySide6.QtGui import (
     QColor,
+    QGuiApplication,
     QImageReader,
     QPainter,
     QPixmap,
@@ -29,6 +30,27 @@ MIN_SCALE = 0.05
 MAX_SCALE = 50.0
 ZOOM_IN_FACTOR = 1.25
 ZOOM_OUT_FACTOR = 0.8
+
+
+_VECTOR_FORMATS = (b"svg", b"svgz")
+
+
+def _vector_scale(size: QSize) -> float:
+    """How much larger than its nominal size to render a vector image.
+
+    Rendered at its nominal size, a small SVG turned to mush the moment it
+    was fitted to the window. Render it so its long side covers the
+    largest screen instead (or less, for one nominally larger still, which
+    also keeps a huge canvas under the decode limit).
+    """
+    if not size.isValid() or size.isEmpty():
+        return 1.0
+    target = max(
+        (max(s.size().width(), s.size().height()) * s.devicePixelRatio()
+         for s in QGuiApplication.screens()),
+        default=2048,
+    )
+    return target / max(size.width(), size.height())
 
 
 def _unrecognised_reason(path: str) -> str:
@@ -93,11 +115,19 @@ class ImageView(QGraphicsView):
             self._last_error = _unrecognised_reason(path)
             return False
         size = reader.size()
+        scale = 1.0
+        if bytes(reader.format()) in _VECTOR_FORMATS:
+            scale = _vector_scale(size)
+            reader.setScaledSize(QSize(
+                max(1, round(size.width() * scale)),
+                max(1, round(size.height() * scale)),
+            ))
         image = reader.read()
         if image.isNull():
             log.info("failed to read: %s (%s)", path, reader.errorString())
             name = Path(path).name or path
-            if too_large(size):
+            decoded = reader.scaledSize() if scale != 1.0 else size
+            if too_large(decoded):
                 self._last_error = (
                     f"{name} is too large to open "
                     f"({size.width()}×{size.height()})"
@@ -106,6 +136,9 @@ class ImageView(QGraphicsView):
                 self._last_error = f"Couldn't read {name} — {reader.errorString()}"
             return False
         pix = QPixmap.fromImage(image)
+        # A vector image rendered large keeps its nominal size as its
+        # logical one, so actual size and the zoom figure mean what they say.
+        pix.setDevicePixelRatio(scale)
         self._pixmap_item.setPixmap(pix)
         self._scene.setSceneRect(self._pixmap_item.boundingRect())
         self._has_image = True
@@ -158,8 +191,8 @@ class ImageView(QGraphicsView):
     def image_size(self) -> tuple[int, int] | None:
         if not self._has_image:
             return None
-        pix = self._pixmap_item.pixmap()
-        return (pix.width(), pix.height())
+        size = self._pixmap_item.pixmap().deviceIndependentSize()
+        return (round(size.width()), round(size.height()))
 
     def last_error(self) -> str | None:
         """Why the most recent load() returned False, if it did."""
@@ -171,13 +204,17 @@ class ImageView(QGraphicsView):
         return self.viewport().width() > 0 and self.viewport().height() > 0
 
     def _apply_fit(self) -> None:
-        self.fitInView(self._pixmap_item, Qt.KeepAspectRatio)
+        # Fit the image's whole rectangle. fitInView(item) fits the item's
+        # shape, which for a pixmap with transparency is just its opaque
+        # pixels (a padded logo was blown up past the window) and, for a
+        # vector image rendered at a high pixel ratio, ignores the ratio.
+        self.fitInView(self._pixmap_item.sceneBoundingRect(), Qt.KeepAspectRatio)
         self._last_fit_scale = self.transform().m11()
         self.zoom_changed.emit(self._last_fit_scale)
 
     def _apply_shrink(self) -> None:
-        pix = self._pixmap_item.pixmap()
-        iw, ih = pix.width(), pix.height()
+        size = self._pixmap_item.pixmap().deviceIndependentSize()
+        iw, ih = size.width(), size.height()
         vw = self.viewport().width()
         vh = self.viewport().height()
         if iw <= vw and ih <= vh:
