@@ -17,6 +17,7 @@ translucent with KWin's blur behind it.
 **Pepper**
 
 - Opens anything Qt and KDE's image plugins can read, including WebP, AVIF, JPEG XL, TIFF, PSD and SVG
+- Plays animated GIF and WebP, and draws SVGs sharp even when they fill the screen
 - Zoom with the wheel or the keys, actual size, fit to window, and drag to pan
 - Opens images at fit, shrink-to-fit or actual size, optionally resizing the window to match
 
@@ -25,12 +26,13 @@ translucent with KWin's blur behind it.
 - Opens `.cbz`, `.cbr`, `.zip` and `.tar` archives (plain, gzip, bzip2 or xz), or a folder of images, recognising misnamed archives by their contents
 - Reads vertically or side by side, fits to width, height or both, and scrolls continuously or a page at a time
 - Decodes pages on demand, so memory stays flat however long the set is
-- Says why a file won't open, part-downloaded archives included, instead of closing
+- Spots part-downloaded archives, and points out a zip of issues or a folder of chapters
 
 **Both**
 
 - No menu bar or toolbar: everything is in the right-click menu
 - Fullscreen, and a minimal mode that hides the status bar
+- Opens files dragged onto the window, and says why one won't open instead of closing
 - An optional translucent window with KWin's blur behind it, on Wayland and X11
 
 ## Status
