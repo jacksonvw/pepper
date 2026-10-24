@@ -72,3 +72,13 @@ def test_single_image_opens_its_folder_at_that_image(comic_dir):
     assert src.names == ["page1.png", "page2.png", "page10.png"]
     assert src.start == 1
     assert src.start_name == "page2.png"
+
+
+def test_mac_resource_forks_are_not_nested_archives(tmp_path, sample_image_bytes):
+    import zipfile
+    pack = tmp_path / "Series.zip"
+    with zipfile.ZipFile(pack, "w") as zf:
+        zf.writestr("Issue 1.cbz", b"PK\x05\x06" + b"\x00" * 18)
+        zf.writestr("__MACOSX/._Issue 1.cbz", b"\x00\x05\x16\x07")
+    assert open_page_source(pack).nested == ["Issue 1.cbz"]
+

@@ -85,7 +85,15 @@ class ImageEntry:
     data: bytes     # raw image bytes
 
 
+def _is_resource_fork(name: str) -> bool:
+    """macOS AppleDouble metadata, e.g. "__MACOSX/._page01.jpg"."""
+    parts = name.lower().replace("\\", "/").split("/")
+    return "__macosx" in parts or parts[-1].startswith("._")
+
+
 def _is_archive(name: str) -> bool:
+    if _is_resource_fork(name):
+        return False
     n = name.lower()
     return any(n.endswith(s) for s in _NESTED_SUFFIXES)
 
@@ -100,8 +108,7 @@ def _is_image(name: str) -> bool:
     # "__MACOSX/._page01.jpg": image-named, but not images. They sorted
     # ahead of the real pages, failed the first-page probe, and got the
     # whole archive rejected.
-    parts = n.replace("\\", "/").split("/")
-    if "__macosx" in parts or parts[-1].startswith("._"):
+    if _is_resource_fork(name):
         return False
     return any(n.endswith(s) for s in _IMAGE_SUFFIXES)
 
