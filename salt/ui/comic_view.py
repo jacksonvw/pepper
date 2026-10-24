@@ -698,6 +698,15 @@ class ComicView(QScrollArea):
                 self._turn_back()
                 ev.accept()
                 return
+        # A horizontal strip of pages that fit the height: a plain mouse
+        # wheel only turns vertically, and QScrollArea hands that to a
+        # vertical bar with nothing to scroll, so the strip didn't move.
+        # Scroll it sideways instead (down goes right).
+        delta = ev.angleDelta()
+        if (self._orientation == "horizontal" and delta.x() == 0
+                and delta.y() != 0 and self.verticalScrollBar().maximum() == 0):
+            QCoreApplication.sendEvent(self.horizontalScrollBar(), ev)
+            return
         super().wheelEvent(ev)
 
     def keyPressEvent(self, ev) -> None:

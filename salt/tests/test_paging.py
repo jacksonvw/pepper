@@ -184,3 +184,19 @@ def test_page_keys_still_turn_straight_away(paged):
                           (Qt.Key_Left, 1), (Qt.Key_Backspace, 0)):
         QTest.keyClick(paged, key)
         assert paged.current_page() == expected
+
+
+# -- Horizontal strip -----------------------------------------------------
+
+def test_plain_wheel_scrolls_a_horizontal_strip(view):
+    """Pages that fit the height left a vertical-only wheel nothing to do."""
+    view.set_orientation("horizontal")
+    view.set_fit_mode("vertical")
+    _settle(view)
+    hbar = view.horizontalScrollBar()
+    assert view.verticalScrollBar().maximum() == 0
+    assert hbar.maximum() > 0
+    _wheel(view, -1)
+    assert hbar.value() > 0
+    _wheel(view, 1)
+    assert hbar.value() == 0
