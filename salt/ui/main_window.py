@@ -198,18 +198,20 @@ class MainWindow(QMainWindow):
     def _show_error(self, message: str) -> None:
         """Put a failure reason where it can actually be read.
 
-        The status bar is hidden in minimal mode, so the message also
-        goes to the centre of the view — otherwise Ctrl+H would swallow
-        the only explanation the user gets.
+        The status bar is hidden in minimal mode, so the message goes to
+        the centre of the view — otherwise Ctrl+H would swallow the only
+        explanation the user gets. It deliberately skips
+        statusBar().showMessage(): QStatusBar only hides its own labels
+        for a message if they are visible at that moment, so a message
+        posted before the first show, or in minimal mode, ends up drawn
+        over "Couldn't open …".
         """
         self._error_label.setText(message)
         self._error_label.show()
         self._reposition_error_label()
-        self.statusBar().showMessage(message)
 
     def _clear_error(self) -> None:
         self._error_label.hide()
-        self.statusBar().clearMessage()
 
     def _on_source_loaded(self, total: int, source: str) -> None:
         # Already shown by _open's title/source update; this is a hook

@@ -122,6 +122,9 @@ def test_window_survives_a_bad_initial_path(qapp, tmp_path):
     assert win.isVisible()
     assert not win._error_label.isHidden()
     assert win._error_label.width() > 0
+    # No status-bar message drawn over the "Couldn't open" label.
+    assert win._status_source.text() == "Couldn't open broken.cbr"
+    assert win.statusBar().currentMessage() == ""
     win.close()
 
 
