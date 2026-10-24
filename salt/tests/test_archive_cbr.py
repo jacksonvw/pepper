@@ -53,6 +53,15 @@ def test_unknown_format_raises_with_reason(tmp_path):
     assert "notacomic.cbz" in str(exc.value)
 
 
+def test_reasons_read_as_sentences(tmp_path):
+    """They're shown verbatim in Salt's error overlay."""
+    broken = tmp_path / "broken.cbz"
+    broken.write_bytes(b"PK\x03\x04" + b"\x00" * 64)
+    with pytest.raises(UnsupportedArchive) as exc:
+        open_page_source(broken)
+    assert str(exc.value).startswith("Couldn't open broken.cbz")
+
+
 # -- Incomplete downloads -------------------------------------------------
 
 def test_sparse_file_reported_as_incomplete(sparse_archive):

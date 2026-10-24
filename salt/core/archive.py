@@ -399,14 +399,14 @@ def _rar_list(path: Path) -> list[str]:
             capture_output=True, timeout=_UNAR_LIST_TIMEOUT,
         )
     except subprocess.TimeoutExpired as e:
-        raise UnsupportedArchive(f"lsar timed out listing {path.name}") from e
+        raise UnsupportedArchive(f"Listing {path.name} timed out") from e
     except OSError as e:
-        raise UnsupportedArchive(f"couldn't run lsar: {e}") from e
+        raise UnsupportedArchive(f"Couldn't run lsar: {e}") from e
 
     if proc.returncode != 0:
         detail = proc.stderr.decode("utf-8", "replace").strip()
         raise UnsupportedArchive(
-            f"couldn't read {path.name}"
+            f"Couldn't read {path.name}"
             + (f" — {detail}" if detail else "")
         )
 
@@ -414,7 +414,7 @@ def _rar_list(path: Path) -> list[str]:
         payload = json.loads(proc.stdout.decode("utf-8", "replace"))
     except (json.JSONDecodeError, UnicodeDecodeError) as e:
         raise UnsupportedArchive(
-            f"couldn't parse the archive listing for {path.name}"
+            f"Couldn't parse the archive listing for {path.name}"
         ) from e
 
     contents = payload.get("lsarContents") or []
@@ -458,7 +458,7 @@ def open_page_source(source: str | Path) -> PageSource:
     except UnsupportedArchive:
         raise
     except (OSError, zipfile.BadZipFile, tarfile.TarError) as e:
-        raise UnsupportedArchive(f"couldn't open {p.name} — {e}") from e
+        raise UnsupportedArchive(f"Couldn't open {p.name} — {e}") from e
 
     # A single image: open its containing directory so the rest of the
     # page set comes along.
