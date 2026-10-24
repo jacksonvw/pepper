@@ -174,6 +174,10 @@ class ComicView(QScrollArea):
     def current_page(self) -> int:
         return self._current_page
 
+    def source_name(self) -> str:
+        """The open set's name: the archive, or the folder of pages."""
+        return self._source.display if self._source is not None else ""
+
     def last_error(self) -> str | None:
         """Why the most recent load_source() returned False, if it did."""
         return self._last_error
@@ -203,13 +207,18 @@ class ComicView(QScrollArea):
             self._last_error = "No readable images in there"
             return False
 
-        # Probe the first page: it both proves the set is decodable and
-        # gives us the aspect ratio every placeholder is sized from.
-        probe = self._decode_natural(src, 0)
+        # Probe the page we open at (the first, or the image Salt was
+        # pointed at): it both proves the set is decodable and gives us the
+        # aspect ratio every placeholder is sized from.
+        start = src.start
+        probe = self._decode_natural(src, start)
         if probe is None:
             src.close()
-            log.warning("first page of %s wouldn't decode", source)
-            self._last_error = "Those pages aren't in a format Qt can decode"
+            log.warning("page %d of %s wouldn't decode", start + 1, source)
+            if src.start_name:
+                self._last_error = f"{src.start_name} isn't an image Qt can decode"
+            else:
+                self._last_error = "Those pages aren't in a format Qt can decode"
             return False
 
         self._clear_layout()
@@ -221,8 +230,8 @@ class ComicView(QScrollArea):
         self._source = src
         self._cache.clear()
         self._natural = [None] * len(src)
-        self._natural[0] = probe.size()
-        self._current_page = 0
+        self._natural[start] = probe.size()
+        self._current_page = start
 
         self._labels = []
         for _ in range(len(src)):
@@ -501,9 +510,15 @@ class ComicView(QScrollArea):
 
         Page positions and scrollbar ranges only catch up when the posted
         LayoutRequest is processed, and scrolling to a page before then
-        clamps to the old range.
+        clamps to the old range. Settling can also bring in or take away
+        a scrollbar, which changes the width pages scale to, so undecoded
+        pages are sized again for it; otherwise they shrink or grow as
+        they decode and the page scrolled to drifts.
         """
         QCoreApplication.sendPostedEvents(None, QEvent.LayoutRequest)
+        if self._labels:
+            self._apply_placeholders()
+            QCoreApplication.sendPostedEvents(None, QEvent.LayoutRequest)
 
     # -- Positions along the reading axis --------------------------------
 

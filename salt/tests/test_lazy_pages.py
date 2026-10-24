@@ -176,3 +176,30 @@ def test_overlay_stays_centred_when_minimal_mode_hides_the_status_bar(qapp, tmp_
     finally:
         win._on_toggle_minimal()  # the saved setting is shared by later tests
         win.close()
+
+
+def test_single_image_opens_at_that_page(qapp, comic_dir):
+    """It used to open the folder at page 1, titled with the one file."""
+    win = MainWindow(initial_path=str(comic_dir / "page10.png"))
+    win.resize(800, 600)
+    win.show()
+    qapp.processEvents()
+    view = win._comic_view
+    # Nothing can scroll before the first show; the rescale that follows
+    # it puts the page in view. Run it now rather than wait out its timer.
+    if view._rescale_timer.isActive():
+        view._rescale_timer.stop()
+        view._invalidate_and_refresh()
+    assert view.current_page() == 2
+    assert win._status_page.text() == "3/3"
+    assert view.verticalScrollBar().value() == view._page_span(2)[0]
+    assert win.windowTitle() == "Salt — comic"
+    win.close()
+
+
+def test_a_single_broken_image_is_named(qapp, comic_dir):
+    """Not papered over by opening the readable pages next to it."""
+    (comic_dir / "page5.png").write_bytes(b"not an image")
+    win = MainWindow(initial_path=str(comic_dir / "page5.png"))
+    assert win._error_label.text() == "page5.png isn't an image Qt can decode"
+    win.close()

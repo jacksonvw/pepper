@@ -22,7 +22,8 @@ suffix. Misnamed comics are common in the wild — a .cbr that is really
 a zip is routine — and extension-only dispatch got those wrong.
 
 If a path is a regular image file (not an archive/dir), we open the
-*containing directory* — same UX as Salt being pointed at a single page.
+*containing directory* at that page — same UX as Salt being pointed at a
+single page.
 """
 
 from __future__ import annotations
@@ -205,6 +206,10 @@ class PageSource:
     def __init__(self, display: str, names: list[str]) -> None:
         self.display = display
         self.names = names
+        # The page to open at, and the image that asked for it when Salt
+        # was pointed at one picture in a folder.
+        self.start = 0
+        self.start_name: str | None = None
 
     def __len__(self) -> int:
         return len(self.names)
@@ -243,13 +248,16 @@ class PageSource:
 
 
 class _DirSource(PageSource):
-    def __init__(self, root: Path) -> None:
+    def __init__(self, root: Path, start_name: str | None = None) -> None:
         files = sorted(
             (c for c in root.iterdir() if c.is_file() and _is_image(c.name)),
             key=lambda c: _natural_key(c.name),
         )
         self._paths = files
         super().__init__(root.name or str(root), [c.name for c in files])
+        if start_name in self.names:
+            self.start = self.names.index(start_name)
+            self.start_name = start_name
 
     def _read_one(self, index: int) -> bytes:
         return self._paths[index].read_bytes()
@@ -460,10 +468,10 @@ def open_page_source(source: str | Path) -> PageSource:
     except (OSError, zipfile.BadZipFile, tarfile.TarError) as e:
         raise UnsupportedArchive(f"Couldn't open {p.name} — {e}") from e
 
-    # A single image: open its containing directory so the rest of the
-    # page set comes along.
+    # A single image: open its containing directory at that image, so the
+    # rest of the page set comes along.
     if p.is_file() and _is_image(p.name) and p.parent.is_dir():
-        return _DirSource(p.parent)
+        return _DirSource(p.parent, start_name=p.name)
 
     raise UnsupportedArchive(f"{p.name} isn't an image set Salt can open")
 

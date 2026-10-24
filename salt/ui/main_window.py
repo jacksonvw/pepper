@@ -191,7 +191,9 @@ class MainWindow(QMainWindow):
             self._status_page.setText("")
             self._show_error(reason)
             return
-        name = Path(path).name or path
+        # The set's name, which for a single image is its folder: that's
+        # what is being browsed.
+        name = self._comic_view.source_name() or Path(path).name or path
         self.setWindowTitle(f"Salt — {name}")
         self._status_source.setText(name)
         self._clear_error()

@@ -65,3 +65,10 @@ def test_mac_resource_forks_are_not_pages(tmp_path, sample_image_bytes):
     (tmp_path / "._stray.png").write_bytes(b"\x00\x05\x16\x07 not an image")
     assert [e.name for e in open_source(z)] == ["page1.png", "page2.png"]
     assert "._stray.png" not in open_page_source(tmp_path).names
+
+
+def test_single_image_opens_its_folder_at_that_image(comic_dir):
+    src = open_page_source(comic_dir / "page2.png")
+    assert src.names == ["page1.png", "page2.png", "page10.png"]
+    assert src.start == 1
+    assert src.start_name == "page2.png"
