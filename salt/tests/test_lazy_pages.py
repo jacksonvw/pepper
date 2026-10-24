@@ -185,11 +185,8 @@ def test_single_image_opens_at_that_page(qapp, comic_dir):
     win.show()
     qapp.processEvents()
     view = win._comic_view
-    # Nothing can scroll before the first show; the rescale that follows
-    # it puts the page in view. Run it now rather than wait out its timer.
-    if view._rescale_timer.isActive():
-        view._rescale_timer.stop()
-        view._invalidate_and_refresh()
+    # Nothing can scroll before the first show, so showing puts the page in
+    # view at once instead of painting page 1 until a timer fires.
     assert view.current_page() == 2
     assert win._status_page.text() == "3/3"
     assert view.verticalScrollBar().value() == view._page_span(2)[0]

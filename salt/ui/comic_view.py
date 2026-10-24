@@ -97,6 +97,8 @@ class ComicView(QScrollArea):
         # Set while we move the view ourselves, so scrollContentsBy doesn't
         # decode pages at the intermediate positions or re-derive the page.
         self._repositioning: bool = False
+        # Rescales run back to back for a viewport our own layout resized.
+        self._extra_passes: int = 0
 
         self._rescale_timer = QTimer(self)
         self._rescale_timer.setSingleShot(True)
@@ -249,9 +251,15 @@ class ComicView(QScrollArea):
             self._labels.append(label)
 
         self._rebuild_layout()
-        self._refresh(force=True)
-        # Start at the top, not at whatever offset the last source was
-        # scrolled to. This also emits page_changed.
+        # Size every page, then start at the start page (which also emits
+        # page_changed). No decoding here: it would read the pages at the
+        # last set's scroll offset, and _apply_current_page decodes the
+        # pages it's about to show anyway.
+        self._repositioning = True
+        try:
+            self._apply_placeholders(force=True)
+        finally:
+            self._repositioning = False
         self._apply_current_page()
 
         self.source_loaded.emit(len(self._labels), source)
@@ -305,7 +313,7 @@ class ComicView(QScrollArea):
             index, _ = self._cache.popitem(last=False)
             if 0 <= index < len(self._labels):
                 self._labels[index].clear()
-                self._apply_placeholder(index)
+                self._apply_placeholder(index, self._page_estimate(index))
 
     def _touch(self, index: int) -> None:
         if index in self._cache:
@@ -324,30 +332,33 @@ class ComicView(QScrollArea):
             vh = max(1, self.height())
         return vw, vh
 
-    def _scale_pixmap(self, pix: QPixmap, vw: int, vh: int) -> QPixmap:
-        iw = pix.width()
-        ih = pix.height()
-        if iw <= 0 or ih <= 0 or vw <= 0 or vh <= 0:
-            return pix
-        if self._fit_mode == "none":
-            # Native pixel size — no scaling. Scrollbars handle overflow.
-            return pix
+    def _fit_size(self, natural: QSize, vw: int, vh: int) -> QSize:
+        """The on-screen size of a page of `natural` size.
+
+        Exactly what _scale_pixmap produces, so a page sized from its known
+        natural size doesn't change size when it decodes.
+        """
+        iw, ih = natural.width(), natural.height()
+        if iw <= 0 or ih <= 0 or vw <= 0 or vh <= 0 or self._fit_mode == "none":
+            # "none" is native pixel size; scrollbars handle overflow.
+            return QSize(natural)
         if self._fit_mode == "horizontal":
-            new_w = vw
-            new_h = max(1, int(ih * vw / iw))
+            target = QSize(vw, max(1, int(ih * vw / iw)))
         elif self._fit_mode == "vertical":
-            new_h = vh
-            new_w = max(1, int(iw * vh / ih))
+            target = QSize(max(1, int(iw * vh / ih)), vh)
         else:  # "both"
             scale = min(vw / iw, vh / ih)
-            new_w = max(1, int(iw * scale))
-            new_h = max(1, int(ih * scale))
-        return pix.scaled(
-            new_w, new_h, Qt.KeepAspectRatio, Qt.SmoothTransformation
-        )
+            target = QSize(max(1, int(iw * scale)), max(1, int(ih * scale)))
+        return natural.scaled(target, Qt.KeepAspectRatio)
+
+    def _scale_pixmap(self, pix: QPixmap, vw: int, vh: int) -> QPixmap:
+        size = self._fit_size(pix.size(), vw, vh)
+        if size == pix.size():
+            return pix
+        return pix.scaled(size, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
 
     def _recompute_placeholder(self) -> None:
-        """Size undecoded pages from whatever natural size we've seen.
+        """Size never-decoded pages from whatever natural size we've seen.
 
         Every page in a comic is near enough the same shape, so one known
         page is a good enough stand-in to keep the scrollbar proportional.
@@ -356,33 +367,36 @@ class ComicView(QScrollArea):
         if known is None or known.width() <= 0 or known.height() <= 0:
             self._placeholder = QSize(0, 0)
             return
-        if self._fit_mode == "none":
-            self._placeholder = known
-            return
-        vw, vh = self._viewport_size()
-        iw, ih = known.width(), known.height()
-        if self._fit_mode == "horizontal":
-            self._placeholder = QSize(vw, max(1, int(ih * vw / iw)))
-        elif self._fit_mode == "vertical":
-            self._placeholder = QSize(max(1, int(iw * vh / ih)), vh)
-        else:
-            scale = min(vw / iw, vh / ih)
-            self._placeholder = QSize(max(1, int(iw * scale)),
-                                      max(1, int(ih * scale)))
+        self._placeholder = self._fit_size(known, *self._viewport_size())
 
-    def _apply_placeholder(self, index: int) -> bool:
+    def _page_estimate(self, index: int) -> QSize:
+        """A page's size before it's decoded: from its own natural size
+        once it has ever been decoded, otherwise the shared placeholder.
+
+        Sizing every page from one placeholder forgot what decoding had
+        learnt, so a spread shrank back to a portrait page's shape whenever
+        it was evicted or rescaled. Everything after it moved, PgDown landed
+        off target, and in page mode a rescale could bring in a scrollbar
+        that the decoded page took away again, rescaling forever.
+        """
+        natural = self._natural[index]
+        if natural is None:
+            return self._placeholder
+        return self._fit_size(natural, *self._viewport_size())
+
+    def _apply_placeholder(self, index: int, size: QSize) -> bool:
         """Size an undecoded label. Returns True if the size changed.
 
         setFixedSize invalidates the layout even when the size is
         identical, and this runs across every page on a hot path, so the
         comparison is what keeps scrolling cheap.
         """
-        if self._placeholder.isEmpty():
+        if size.isEmpty():
             return False
         label = self._labels[index]
-        if label.size() == self._placeholder:
+        if label.size() == size:
             return False
-        label.setFixedSize(self._placeholder)
+        label.setFixedSize(size)
         return True
 
     # -- Visible range ---------------------------------------------------
@@ -433,8 +447,10 @@ class ComicView(QScrollArea):
         if self._source is None or not self._labels:
             return
         self._apply_placeholders(force=force)
+        self._show_pages(self._visible_indices())
 
-        wanted = self._visible_indices()
+    def _show_pages(self, wanted: list[int]) -> None:
+        """Decode any of `wanted` not in the cache and put them on screen."""
         # Promote the pages we're about to show *before* decoding new
         # ones, so a page that is still on screen can't be the LRU victim
         # of the very decode that was meant to fill in around it.
@@ -447,8 +463,15 @@ class ComicView(QScrollArea):
                 self._labels[i].setFixedSize(pix.size())
                 self._labels[i].setPixmap(pix)
 
+    def _reading_window(self, page: int) -> list[int]:
+        """The pages that will be on screen with `page` at the top."""
+        if self._scroll_mode == "page":
+            return [page]
+        return list(range(max(0, page - _LOOKBEHIND),
+                          min(len(self._labels), page + _LOOKAHEAD + 1)))
+
     def _apply_placeholders(self, *, force: bool = False) -> None:
-        """Size every undecoded label from the current placeholder."""
+        """Size every undecoded label from its estimate."""
         self._recompute_placeholder()
 
         # Give undecoded labels their placeholder geometry *before* asking
@@ -466,7 +489,7 @@ class ComicView(QScrollArea):
                     continue
                 if force:
                     label.clear()
-                changed |= self._apply_placeholder(i)
+                changed |= self._apply_placeholder(i, self._page_estimate(i))
             self._placeholder_applied = self._placeholder
             if changed:
                 self._layout.activate()
@@ -486,9 +509,15 @@ class ComicView(QScrollArea):
         """
         page, fraction = self._reading_position()
         self._cache.clear()
+        before = self.viewport().size()
         self._repositioning = True
         try:
             self._apply_placeholders(force=True)
+            if self._labels:
+                # Decode the pages being read before laying out, so the
+                # layout that is settled is the one that stays: decoding
+                # them afterwards changed the heights above the target.
+                self._show_pages(self._reading_window(page))
             self._settle_layout()
             if self._labels and self._scroll_mode == "page":
                 bar = self.verticalScrollBar()
@@ -499,6 +528,31 @@ class ComicView(QScrollArea):
         finally:
             self._repositioning = False
         self._refresh()
+        self._rescale_if_resized(before)
+
+    def _rescale_if_resized(self, before: QSize) -> None:
+        """Rescale again at once if repositioning changed the viewport.
+
+        Resizes while repositioning don't restart the rescale timer: the
+        layout can pass through states that bring a scrollbar in and take
+        it away again, and reacting to those is how rescaling looped. A net
+        change still needs the pages scaled to the new size. Typically a
+        page decoded at full width brings in the vertical bar, is then too
+        wide for the narrower view, and needs one or two passes to settle.
+        Those run now, not after the drag debounce, so no stray scrollbar
+        flashes up; past three, a bar that can't make up its mind is left.
+        """
+        if not self._labels or self.viewport().size() == before:
+            return
+        if self._extra_passes >= 3:
+            log.info("viewport still resizing after %d rescales; leaving it",
+                     self._extra_passes)
+            return
+        self._extra_passes += 1
+        try:
+            self._invalidate_and_refresh()
+        finally:
+            self._extra_passes -= 1
 
     def _reading_position(self) -> tuple[int, float]:
         """The current page, and how far into it the view is (0..1)."""
@@ -613,22 +667,32 @@ class ComicView(QScrollArea):
         """
         if not self._labels:
             return
+        before = self.viewport().size()
         self._repositioning = True
         try:
             if self._scroll_mode == "page":
                 self._rebuild_layout()
-                self._refresh()
-                self._settle_layout()
+            # Decode what will be on screen before settling the layout, so
+            # positions don't move under the page once it's scrolled to.
+            self._show_pages(self._reading_window(self._current_page))
+            self._settle_layout()
+            if self._scroll_mode == "page":
                 self.horizontalScrollBar().setValue(0)
                 bar = self.verticalScrollBar()
                 bar.setValue(bar.maximum() if at_end else 0)
             else:
-                self._settle_layout()
                 start, _ = self._page_span(self._current_page)
                 self._scroll_bar().setValue(start)
+                # And from the start of the other axis too: a page used to
+                # open at whatever cross offset the last one was left at.
+                cross = (self.verticalScrollBar()
+                         if self._orientation == "horizontal"
+                         else self.horizontalScrollBar())
+                cross.setValue(0)
         finally:
             self._repositioning = False
         self._refresh()
+        self._rescale_if_resized(before)
         self.page_changed.emit(self._current_page + 1, len(self._labels))
 
     # -- Layout internals ------------------------------------------------
@@ -679,9 +743,22 @@ class ComicView(QScrollArea):
 
     def resizeEvent(self, ev) -> None:
         super().resizeEvent(ev)
-        if self._labels:
+        # Viewport resizes arrive here too (QAbstractScrollArea forwards
+        # them), including the ones our own repositioning causes; those are
+        # handled by _rescale_if_resized instead.
+        if self._labels and not self._repositioning:
             # Rescaling is expensive; wait for the drag to settle.
             self._rescale_timer.start()
+
+    def showEvent(self, ev) -> None:
+        super().showEvent(ev)
+        # A set opened before the first show (a launch path) couldn't be
+        # scrolled to its page: there was no geometry yet. Showing queued a
+        # rescale, which puts the page in view; run it now rather than
+        # paint page 1 first and jump there when the timer fires.
+        if self._rescale_timer.isActive():
+            self._rescale_timer.stop()
+            self._invalidate_and_refresh()
 
     def wheelEvent(self, ev) -> None:
         # Page mode: the wheel scrolls through a page taller than the view
