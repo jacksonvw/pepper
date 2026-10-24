@@ -242,3 +242,28 @@ def test_a_still_image_stops_the_animation(view, sample_animated_gif, sample_pix
     assert view.load(str(sample_pixmap))
     assert not view.is_animated()
     assert view.image_size() == (100, 60)
+
+
+def test_zoom_in_works_from_a_fit_below_the_minimum(view, sample_pixmap):
+    """A huge image fitted under MIN_SCALE couldn't be zoomed in at all."""
+    from PySide6.QtGui import QTransform
+    from pepper.ui.image_view import MIN_SCALE
+    assert view.load(str(sample_pixmap))
+    tiny = MIN_SCALE / 5
+    view.setTransform(QTransform.fromScale(tiny, tiny))
+    view.zoom_out()
+    assert view.transform().m11() == pytest.approx(tiny)    # no further out
+    view.zoom_in()
+    assert view.transform().m11() == pytest.approx(tiny * ZOOM_IN_FACTOR)
+
+
+def test_zoom_out_works_from_a_fit_above_the_maximum(view, sample_pixmap):
+    """The same trap at the other end: a tiny image fitted past MAX_SCALE."""
+    from PySide6.QtGui import QTransform
+    assert view.load(str(sample_pixmap))
+    big = MAX_SCALE * 2
+    view.setTransform(QTransform.fromScale(big, big))
+    view.zoom_in()
+    assert view.transform().m11() == pytest.approx(big)     # no further in
+    view.zoom_out()
+    assert view.transform().m11() == pytest.approx(big * ZOOM_OUT_FACTOR)

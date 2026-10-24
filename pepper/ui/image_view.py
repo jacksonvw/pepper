@@ -36,6 +36,18 @@ ZOOM_OUT_FACTOR = 0.8
 _VECTOR_FORMATS = (b"svg", b"svgz")
 
 
+def _zoom_allowed(scale: float, factor: float) -> bool:
+    """Refuse a zoom step only if it moves further past a limit.
+
+    Checking just the result trapped an image whose fit already fell below
+    MIN_SCALE (a huge image in a small window): every step in still landed
+    under the minimum, so it couldn't be zoomed at all.
+    """
+    if factor > 1:
+        return scale * factor <= MAX_SCALE
+    return scale * factor >= MIN_SCALE
+
+
 def _vector_scale(size: QSize) -> float:
     """How much larger than its nominal size to render a vector image.
 
@@ -257,8 +269,7 @@ class ImageView(QGraphicsView):
     def _zoom_by(self, factor: float) -> None:
         if not self._has_image:
             return
-        new_scale = self.transform().m11() * factor
-        if new_scale < MIN_SCALE or new_scale > MAX_SCALE:
+        if not _zoom_allowed(self.transform().m11(), factor):
             return
         self.scale(factor, factor)
         self._fit_mode = None
@@ -279,8 +290,7 @@ class ImageView(QGraphicsView):
             ev.ignore()
             return
         factor = ZOOM_IN_FACTOR if delta > 0 else ZOOM_OUT_FACTOR
-        new_scale = self.transform().m11() * factor
-        if new_scale < MIN_SCALE or new_scale > MAX_SCALE:
+        if not _zoom_allowed(self.transform().m11(), factor):
             ev.accept()
             return
         self.scale(factor, factor)
