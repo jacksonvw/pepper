@@ -204,10 +204,10 @@ class MainWindow(QMainWindow):
             self._open(path)
 
     def _on_toggle_fullscreen(self) -> None:
-        if self.isFullScreen():
-            self.showNormal()
-        else:
-            self.showFullScreen()
+        # Flip only the fullscreen flag. showFullScreen()/showNormal() threw
+        # away a maximized state, so F11 twice left a maximized window at
+        # its old normal size.
+        self.setWindowState(self.windowState() ^ Qt.WindowFullScreen)
 
     def _on_toggle_minimal(self) -> None:
         self._minimal = not self._minimal
@@ -383,7 +383,7 @@ class MainWindow(QMainWindow):
 
     def keyPressEvent(self, ev) -> None:
         if ev.key() == Qt.Key_Escape and self.isFullScreen():
-            self.showNormal()
+            self.setWindowState(self.windowState() & ~Qt.WindowFullScreen)
             ev.accept()
             return
         super().keyPressEvent(ev)
@@ -398,6 +398,11 @@ class MainWindow(QMainWindow):
         geo = s.value("geometry")
         if geo:
             self.restoreGeometry(geo)
+            # Never start fullscreen. restoreGeometry() brings back the state
+            # the window was closed in, so quitting from fullscreen reopened
+            # fullscreen. A maximized window stays maximized.
+            if self.isFullScreen():
+                self.setWindowState(self.windowState() & ~Qt.WindowFullScreen)
         ws = s.value("windowState")
         if ws:
             self.restoreState(ws)

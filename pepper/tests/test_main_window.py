@@ -71,3 +71,45 @@ def test_overlay_stays_centred_when_minimal_mode_hides_the_status_bar(
     finally:
         win._on_toggle_minimal()  # the saved setting is shared by later tests
         win.close()
+
+
+def _forget_window_state():
+    """The saved settings are shared by later tests; don't leave them
+    starting maximized."""
+    from PySide6.QtCore import QSettings
+    QSettings("pepper", "pepper").clear()
+
+
+def test_leaving_fullscreen_restores_maximized(qapp):
+    """showNormal() used to drop a maximized window to its normal size."""
+    from PySide6.QtCore import Qt
+    from PySide6.QtTest import QTest
+    win = MainWindow()
+    win.show()
+    win.showMaximized()
+    try:
+        win._on_toggle_fullscreen()
+        assert win.isFullScreen()
+        win._on_toggle_fullscreen()
+        assert win.isMaximized() and not win.isFullScreen()
+        win._on_toggle_fullscreen()
+        QTest.keyClick(win, Qt.Key_Escape)
+        assert win.isMaximized() and not win.isFullScreen()
+    finally:
+        win.close()
+        _forget_window_state()
+
+
+def test_quitting_from_fullscreen_doesnt_reopen_fullscreen(qapp):
+    win = MainWindow()
+    win.show()
+    win.showMaximized()
+    win._on_toggle_fullscreen()
+    win.close()
+    try:
+        again = MainWindow()
+        assert not again.isFullScreen()
+        assert again.isMaximized()
+        again.close()
+    finally:
+        _forget_window_state()
