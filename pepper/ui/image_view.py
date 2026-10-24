@@ -11,6 +11,7 @@ from PySide6.QtGui import (
     QColor,
     QGuiApplication,
     QImageReader,
+    QMovie,
     QPainter,
     QPixmap,
     QTransform,
@@ -99,6 +100,8 @@ class ImageView(QGraphicsView):
         self._fit_mode: str | None = "fit"
         self._has_image: bool = False
         self._last_error: str | None = None
+        # Plays an animated GIF or WebP; None for a still image.
+        self._movie: QMovie | None = None
         self._pending_first_fit: bool = False
         self._last_fit_scale: float = 1.0
         # Track scroll-hand-drag state for the matching mouse release.
@@ -115,6 +118,7 @@ class ImageView(QGraphicsView):
             self._last_error = _unrecognised_reason(path)
             return False
         size = reader.size()
+        animated = reader.supportsAnimation() and reader.imageCount() > 1
         scale = 1.0
         if bytes(reader.format()) in _VECTOR_FORMATS:
             scale = _vector_scale(size)
@@ -135,6 +139,7 @@ class ImageView(QGraphicsView):
             else:
                 self._last_error = f"Couldn't read {name} — {reader.errorString()}"
             return False
+        self._stop_movie()
         pix = QPixmap.fromImage(image)
         # A vector image rendered large keeps its nominal size as its
         # logical one, so actual size and the zoom figure mean what they say.
@@ -144,6 +149,8 @@ class ImageView(QGraphicsView):
         self._has_image = True
         # Caller (MainWindow._open) decides which initial zoom mode to apply.
         self._pending_first_fit = True
+        if animated:
+            self._play(path)
         return True
 
     def fit_to_window(self) -> None:
@@ -194,11 +201,31 @@ class ImageView(QGraphicsView):
         size = self._pixmap_item.pixmap().deviceIndependentSize()
         return (round(size.width()), round(size.height()))
 
+    def is_animated(self) -> bool:
+        return self._movie is not None
+
     def last_error(self) -> str | None:
         """Why the most recent load() returned False, if it did."""
         return self._last_error
 
     # -- Internals -------------------------------------------------------
+
+    def _play(self, path: str) -> None:
+        """Animate a GIF or WebP; read() alone only ever gave its first frame."""
+        movie = QMovie(path, parent=self)
+        movie.frameChanged.connect(self._show_frame)
+        self._movie = movie
+        movie.start()
+
+    def _show_frame(self, _frame: int) -> None:
+        if self._movie is not None:
+            self._pixmap_item.setPixmap(self._movie.currentPixmap())
+
+    def _stop_movie(self) -> None:
+        if self._movie is not None:
+            self._movie.stop()
+            self._movie.deleteLater()
+            self._movie = None
 
     def _viewport_sized(self) -> bool:
         return self.viewport().width() > 0 and self.viewport().height() > 0

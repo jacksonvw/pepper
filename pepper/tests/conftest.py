@@ -67,3 +67,23 @@ def sample_invalid(tmp_path: Path) -> Path:
     p = tmp_path / "junk.png"
     p.write_bytes(b"this is not an image, and never was")
     return p
+
+
+# Two 4×4 frames, orange then teal, 100 ms apart. Qt reads GIFs but can't
+# write them, so the file is spelled out here.
+_TWO_FRAME_GIF = (
+    b"GIF89a\x04\x00\x04\x00\xf0\x00\x00\xe8U:\x00\x00\x00"
+    b"!\xff\x0bNETSCAPE2.0\x03\x01\x00\x00\x00"
+    b"!\xf9\x04\x00\x02\x00\x00\x00,\x00\x00\x00\x00\x04\x00\x04\x00\x00"
+    b"\x02\x04\x84\x8f\t\x05\x00"
+    b"!\xf9\x04\x00\x02\x00\x00\x00,\x00\x00\x00\x00\x04\x00\x04\x00"
+    b"\x80/\x7f\x9a\x00\x00\x00"
+    b"\x02\x04\x84\x8f\t\x05\x00;"
+)
+
+
+@pytest.fixture
+def sample_animated_gif(tmp_path: Path) -> Path:
+    p = tmp_path / "blink.gif"
+    p.write_bytes(_TWO_FRAME_GIF)
+    return p

@@ -219,3 +219,26 @@ def test_a_huge_svg_canvas_opens(view, tmp_path):
     )
     assert view.load(str(huge)), view.last_error()
     assert view.image_size() == (60000, 60000)
+
+
+def test_animated_gif_plays(view, sample_animated_gif):
+    """read() alone only ever showed the first frame."""
+    from PySide6.QtTest import QTest
+    assert view.load(str(sample_animated_gif))
+    assert view.is_animated()
+    first = view._pixmap_item.pixmap().toImage().pixelColor(1, 1)
+    for _ in range(80):
+        QTest.qWait(25)
+        if view._movie.currentFrameNumber() == 1:
+            break
+    assert view._movie.currentFrameNumber() == 1
+    assert view._pixmap_item.pixmap().toImage().pixelColor(1, 1) != first
+    assert view.image_size() == (4, 4)
+
+
+def test_a_still_image_stops_the_animation(view, sample_animated_gif, sample_pixmap):
+    assert view.load(str(sample_animated_gif))
+    assert view.is_animated()
+    assert view.load(str(sample_pixmap))
+    assert not view.is_animated()
+    assert view.image_size() == (100, 60)
