@@ -35,3 +35,11 @@ def test_no_limit_means_nothing_is_too_large(restore_limit):
 def test_unknown_size_is_not_too_large(restore_limit):
     raise_decode_limit()
     assert not too_large(QSize())
+
+
+def test_too_large_counts_the_decoded_depth(restore_limit):
+    """A 16-bit PNG decodes to eight bytes a pixel, not four."""
+    from PySide6.QtGui import QImage
+    QImageReader.setAllocationLimit(4)     # MB; 900×900 is ~3.1 MB at 4 bytes
+    assert not too_large(QSize(900, 900), QImage.Format_ARGB32)
+    assert too_large(QSize(900, 900), QImage.Format_RGBA64)

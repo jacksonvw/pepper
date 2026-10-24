@@ -130,6 +130,7 @@ class ImageView(QGraphicsView):
             self._last_error = _unrecognised_reason(path)
             return False
         size = reader.size()
+        decoded_format = reader.imageFormat()
         animated = reader.supportsAnimation() and reader.imageCount() > 1
         scale = 1.0
         if bytes(reader.format()) in _VECTOR_FORMATS:
@@ -143,7 +144,7 @@ class ImageView(QGraphicsView):
             log.info("failed to read: %s (%s)", path, reader.errorString())
             name = Path(path).name or path
             decoded = reader.scaledSize() if scale != 1.0 else size
-            if too_large(decoded):
+            if too_large(decoded, decoded_format):
                 self._last_error = (
                     f"{name} is too large to open "
                     f"({size.width()}×{size.height()})"
