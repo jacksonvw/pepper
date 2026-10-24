@@ -488,7 +488,9 @@ def open_page_source(source: str | Path) -> PageSource:
     UnsupportedArchive (with a human-readable reason) if it exists but
     can't be opened as an image set.
     """
-    p = Path(source)
+    # Absolute, so a page given relative to the current folder still has a
+    # named folder: "page2.png" used to give a set called ".".
+    p = Path(source).absolute()
     if not p.exists():
         raise FileNotFoundError(str(p))
 

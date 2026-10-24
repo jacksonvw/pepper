@@ -82,3 +82,10 @@ def test_mac_resource_forks_are_not_nested_archives(tmp_path, sample_image_bytes
         zf.writestr("__MACOSX/._Issue 1.cbz", b"\x00\x05\x16\x07")
     assert open_page_source(pack).nested == ["Issue 1.cbz"]
 
+
+def test_an_image_named_relative_to_the_current_folder(comic_dir, monkeypatch):
+    """"page2.png" from inside the folder gave a set called "."."""
+    monkeypatch.chdir(comic_dir)
+    src = open_page_source("page2.png")
+    assert src.display == "comic"
+    assert src.start_name == "page2.png"
