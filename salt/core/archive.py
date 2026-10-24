@@ -13,7 +13,7 @@ Public API:
 
 Supported sources:
     - Directory             — non-recursive scan of immediate children
-    - .zip / .cbz           — flat or nested; recursion is automatic
+    - .zip / .cbz           — pages at any depth; archives inside aren't opened
     - .cbr / .rar           — needs `unar` on PATH (see _RarSource)
     - .tar / .tar.gz / .tgz / .tar.bz2 / .tbz2 / .tar.xz / .txz
 
@@ -58,6 +58,11 @@ _TAR_SUFFIXES = (
 
 _ZIP_SUFFIXES = (".zip", ".cbz")
 _RAR_SUFFIXES = (".cbr", ".rar")
+# Anything that is an archive in its own right, opened or not (7z isn't),
+# so a set made only of those can be explained rather than called empty.
+_NESTED_SUFFIXES = (
+    _ZIP_SUFFIXES + _RAR_SUFFIXES + _TAR_SUFFIXES + (".cbt", ".7z", ".cb7")
+)
 
 # How long we give `lsar`/`unar` before assuming something is wedged.
 # Listing is a header walk even on huge archives; extraction of a few
@@ -78,6 +83,15 @@ class UnsupportedArchive(Exception):
 class ImageEntry:
     name: str       # display name (basename within source)
     data: bytes     # raw image bytes
+
+
+def _is_archive(name: str) -> bool:
+    n = name.lower()
+    return any(n.endswith(s) for s in _NESTED_SUFFIXES)
+
+
+def _basename(member: str) -> str:
+    return member.replace("\\", "/").rstrip("/").rsplit("/", 1)[-1]
 
 
 def _is_image(name: str) -> bool:
@@ -210,6 +224,9 @@ class PageSource:
         # was pointed at one picture in a folder.
         self.start = 0
         self.start_name: str | None = None
+        # Archives (and, in a folder, subfolders) inside the set that hold
+        # no pages Salt can read directly.
+        self.nested: list[str] = []
 
     def __len__(self) -> int:
         return len(self.names)
@@ -255,6 +272,12 @@ class _DirSource(PageSource):
         )
         self._paths = files
         super().__init__(root.name or str(root), [c.name for c in files])
+        self.nested = sorted(
+            (c.name for c in root.iterdir()
+             if not c.name.startswith(".")
+             and (c.is_dir() or (c.is_file() and _is_archive(c.name)))),
+            key=_natural_key,
+        )
         if start_name in self.names:
             self.start = self.names.index(start_name)
             self.start_name = start_name
@@ -273,6 +296,11 @@ class _ZipSource(PageSource):
         infos.sort(key=lambda i: _natural_key(i.filename))
         self._infos = infos
         super().__init__(path.name, [i.filename for i in infos])
+        self.nested = sorted(
+            (_basename(i.filename) for i in self._zf.infolist()
+             if not i.is_dir() and _is_archive(i.filename)),
+            key=_natural_key,
+        )
 
     def _read_one(self, index: int) -> bytes:
         return self._zf.read(self._infos[index])
@@ -291,6 +319,11 @@ class _TarSource(PageSource):
         members.sort(key=lambda m: _natural_key(m.name))
         self._members = members
         super().__init__(path.name, [m.name for m in members])
+        self.nested = sorted(
+            (_basename(m.name) for m in self._tf.getmembers()
+             if m.isfile() and _is_archive(m.name)),
+            key=_natural_key,
+        )
 
     def _read_one(self, index: int) -> bytes:
         fh = self._tf.extractfile(self._members[index])
@@ -324,6 +357,9 @@ class _RarSource(PageSource):
         names = _rar_list(path)
         images = sorted((n for n in names if _is_image(n)), key=_natural_key)
         super().__init__(path.name, images)
+        self.nested = sorted(
+            (_basename(n) for n in names if _is_archive(n)), key=_natural_key
+        )
 
     def _scratch(self) -> Path:
         if self._tmp is None:

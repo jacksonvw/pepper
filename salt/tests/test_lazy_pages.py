@@ -203,3 +203,33 @@ def test_a_single_broken_image_is_named(qapp, comic_dir):
     win = MainWindow(initial_path=str(comic_dir / "page5.png"))
     assert win._error_label.text() == "page5.png isn't an image Qt can decode"
     win.close()
+
+
+def test_a_zip_of_issues_is_explained(view, tmp_path, comic_zip):
+    """Not called empty: the pages are inside the archives it holds."""
+    pack = tmp_path / "pack.zip"
+    with zipfile.ZipFile(pack, "w") as zf:
+        zf.write(comic_zip, "Issue 01.cbz")
+        zf.write(comic_zip, "Issue 02.cbz")
+    assert view.load_source(str(pack)) is False
+    assert view.last_error() == (
+        "pack.zip holds Issue 01.cbz and 1 more rather than pages — "
+        "Salt opens one archive or folder at a time"
+    )
+
+
+def test_a_folder_of_chapters_is_explained(view, tmp_path, sample_image_bytes):
+    series = tmp_path / "Series"
+    for chapter in ("Chapter 2", "Chapter 10"):
+        (series / chapter).mkdir(parents=True)
+        (series / chapter / "001.png").write_bytes(sample_image_bytes)
+    assert view.load_source(str(series)) is False
+    assert view.last_error().startswith("Series holds Chapter 2 and 1 more")
+
+
+def test_an_archive_with_nothing_in_it_is_still_empty(view, tmp_path):
+    empty = tmp_path / "empty.cbz"
+    with zipfile.ZipFile(empty, "w") as zf:
+        zf.writestr("readme.txt", "no pages")
+    assert view.load_source(str(empty)) is False
+    assert view.last_error() == "No readable images in there"

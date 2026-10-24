@@ -204,7 +204,16 @@ class ComicView(QScrollArea):
         if len(src) == 0:
             src.close()
             log.warning("no readable images in %s", source)
-            self._last_error = "No readable images in there"
+            if src.nested:
+                # A zip of issues, or a series folder of chapters: the
+                # pages are one level further down.
+                more = f" and {len(src.nested) - 1} more" if len(src.nested) > 1 else ""
+                self._last_error = (
+                    f"{src.display} holds {src.nested[0]}{more} rather than "
+                    f"pages — Salt opens one archive or folder at a time"
+                )
+            else:
+                self._last_error = "No readable images in there"
             return False
 
         # Probe the page we open at (the first, or the image Salt was
