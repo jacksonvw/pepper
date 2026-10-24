@@ -156,3 +156,23 @@ def test_tests_keep_out_of_the_real_config(qapp, tmp_path_factory):
     assert win._settings().fileName().startswith(scratch)
     assert str(config._default_path()).startswith(scratch)
     win.close()
+
+
+def test_overlay_stays_centred_when_minimal_mode_hides_the_status_bar(qapp, tmp_path):
+    """Hiding the status bar resizes the viewport but not the window."""
+    junk = tmp_path / "broken.cbr"
+    junk.write_bytes(b"not a rar")
+    win = MainWindow(initial_path=str(junk))
+    win.resize(600, 400)
+    win.show()
+    qapp.processEvents()
+    vp, label = win._comic_view.viewport(), win._error_label
+    before = vp.height()
+    win._on_toggle_minimal()
+    qapp.processEvents()
+    try:
+        assert vp.height() != before
+        assert abs(label.geometry().center().y() - vp.height() / 2) <= 1
+    finally:
+        win._on_toggle_minimal()  # the saved setting is shared by later tests
+        win.close()

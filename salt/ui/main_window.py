@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from PySide6.QtCore import QSettings, Qt
+from PySide6.QtCore import QEvent, QSettings, Qt
 from PySide6.QtGui import (
     QAction,
     QActionGroup,
@@ -89,7 +89,7 @@ class MainWindow(QMainWindow):
 
         # Overlay for open failures. Parented to the viewport so it sits
         # on top of the pages and survives minimal mode hiding the status
-        # bar. Positioned by hand in resizeEvent — no layout to fight.
+        # bar. Positioned by hand as the viewport resizes — no layout to fight.
         self._error_label = QLabel(self._comic_view.viewport())
         self._error_label.setAlignment(Qt.AlignCenter)
         self._error_label.setWordWrap(True)
@@ -102,6 +102,7 @@ class MainWindow(QMainWindow):
             " border-radius: 6px; padding: 14px 18px; }"
         )
         self._error_label.hide()
+        self._comic_view.viewport().installEventFilter(self)
 
         # Apply config-driven comic settings before any source is loaded.
         self._comic_view.set_orientation(self._config.orientation)
@@ -369,9 +370,13 @@ class MainWindow(QMainWindow):
 
     # -- Error overlay placement -----------------------------------------
 
-    def resizeEvent(self, ev) -> None:
-        super().resizeEvent(ev)
-        self._reposition_error_label()
+    def eventFilter(self, obj, ev) -> bool:
+        # Follow the viewport's size rather than the window's: hiding the
+        # status bar in minimal mode resizes the viewport alone, and the
+        # overlay was left sitting off-centre.
+        if ev.type() == QEvent.Resize and obj is self._comic_view.viewport():
+            self._reposition_error_label()
+        return super().eventFilter(obj, ev)
 
     def _reposition_error_label(self) -> None:
         # isHidden(), not isVisible(): a child of a not-yet-shown window

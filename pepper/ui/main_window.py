@@ -14,7 +14,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from PySide6.QtCore import QSettings, Qt
+from PySide6.QtCore import QEvent, QSettings, Qt
 from PySide6.QtGui import (
     QAction,
     QColor,
@@ -127,7 +127,7 @@ class MainWindow(QMainWindow):
         # not its viewport as in Salt: QGraphicsView scrolls by calling
         # viewport()->scroll(), which drags the viewport's children along,
         # so the overlay would wander off as soon as the image underneath
-        # was panned. Positioned by hand in resizeEvent — no layout to fight.
+        # was panned. Positioned by hand as the view resizes — no layout to fight.
         self._error_label = QLabel(self._image_view)
         self._error_label.setAlignment(Qt.AlignCenter)
         self._error_label.setWordWrap(True)
@@ -140,6 +140,7 @@ class MainWindow(QMainWindow):
             " border-radius: 6px; padding: 14px 18px; }"
         )
         self._error_label.hide()
+        self._image_view.installEventFilter(self)
 
         self._build_status_bar()
         self._build_actions()
@@ -350,9 +351,13 @@ class MainWindow(QMainWindow):
 
     # -- Error overlay placement -----------------------------------------
 
-    def resizeEvent(self, ev) -> None:
-        super().resizeEvent(ev)
-        self._reposition_error_label()
+    def eventFilter(self, obj, ev) -> bool:
+        # Follow the view's size rather than the window's: hiding the
+        # status bar in minimal mode resizes the view alone, and the
+        # overlay was left sitting off-centre.
+        if ev.type() == QEvent.Resize and obj is self._image_view:
+            self._reposition_error_label()
+        return super().eventFilter(obj, ev)
 
     def _reposition_error_label(self) -> None:
         # isHidden(), not isVisible(): a child of a not-yet-shown window

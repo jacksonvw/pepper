@@ -51,3 +51,23 @@ def test_tests_keep_out_of_the_real_config(qapp, tmp_path_factory):
     assert win._settings().fileName().startswith(scratch)
     assert str(config._default_path()).startswith(scratch)
     win.close()
+
+
+def test_overlay_stays_centred_when_minimal_mode_hides_the_status_bar(
+    qapp, sample_invalid
+):
+    """Hiding the status bar resizes the view but not the window."""
+    win = MainWindow(initial_path=str(sample_invalid))
+    win.resize(600, 400)
+    win.show()
+    qapp.processEvents()
+    view, label = win._image_view, win._error_label
+    before = view.height()
+    win._on_toggle_minimal()
+    qapp.processEvents()
+    try:
+        assert view.height() != before
+        assert abs(label.geometry().center().y() - view.height() / 2) <= 1
+    finally:
+        win._on_toggle_minimal()  # the saved setting is shared by later tests
+        win.close()
