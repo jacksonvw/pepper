@@ -9,6 +9,7 @@ app-specific fields.
 
 from __future__ import annotations
 
+import os
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -76,8 +77,16 @@ def emit_appearance_lines(cfg: AppearanceConfig) -> list[str]:
 
 
 def app_config_path(app_name: str) -> Path:
-    """`~/.config/<app_name>/config.toml`."""
-    return Path.home() / ".config" / app_name / "config.toml"
+    """`$XDG_CONFIG_HOME/<app_name>/config.toml`, `~/.config` by default.
+
+    That is where QSettings already keeps the window geometry. Inside a
+    Flatpak it is the app's own ~/.var/app/<id>/config, since the
+    sandbox can't write to ~/.config.
+    """
+    base = os.environ.get("XDG_CONFIG_HOME", "")
+    # The XDG spec says to ignore a relative path.
+    root = Path(base) if os.path.isabs(base) else Path.home() / ".config"
+    return root / app_name / "config.toml"
 
 
 def write_toml(path: Path, body: str) -> None:

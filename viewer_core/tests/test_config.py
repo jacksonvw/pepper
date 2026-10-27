@@ -54,6 +54,18 @@ def test_emit_roundtrip():
     assert data["appearance"]["bg_tint_strength"] == 55
 
 
-def test_app_config_path_uses_xdg_default():
+def test_app_config_path_uses_xdg_default(monkeypatch):
+    monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
+    p = app_config_path("widget")
+    assert p.parts[-3:] == (".config", "widget", "config.toml")
+
+
+def test_app_config_path_honours_xdg_config_home(monkeypatch, tmp_path):
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    assert app_config_path("widget") == tmp_path / "widget" / "config.toml"
+
+
+def test_app_config_path_ignores_relative_xdg_config_home(monkeypatch):
+    monkeypatch.setenv("XDG_CONFIG_HOME", "relative/dir")
     p = app_config_path("widget")
     assert p.parts[-3:] == (".config", "widget", "config.toml")
