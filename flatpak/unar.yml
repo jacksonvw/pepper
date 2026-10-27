@@ -1,0 +1,63 @@
+# The Unarchiver's lsar and unar, which Salt runs to read CBR/RAR (see
+# _RarSource in salt/core/archive.py). They are Objective-C on GNUstep, so
+# GNUstep's make and base library are built first. The recipe and both
+# patches follow Arch Linux's unarchiver, gnustep-base and gnustep-make
+# packages. Everything else unar links (libobjc, ICU, WavPack, zlib, bzip2)
+# is already in the KDE runtime.
+name: unar
+buildsystem: simple
+build-commands:
+  - . /app/share/GNUstep/Makefiles/GNUstep.sh &&
+    cd XADMaster &&
+    make -j"$FLATPAK_BUILDER_N_JOBS" -f Makefile.linux
+      OBJCFLAGS=-I/app/include
+      CFLAGS="$CFLAGS -Wno-int-conversion"
+  - install -Dm755 -t /app/bin XADMaster/lsar XADMaster/unar
+sources:
+  - type: archive
+    url: https://github.com/MacPaw/XADMaster/archive/v1.10.8.tar.gz
+    sha256: 652953d7988b3c33f4f52b61c357afd1a7c2fc170e5e6e2219f4432b0c4cd39f
+    dest: XADMaster
+  # Makefile.linux expects this beside the XADMaster tree.
+  - type: archive
+    url: https://github.com/MacPaw/universal-detector/archive/1.1.tar.gz
+    sha256: 8e8532111d0163628eb828a60d67b53133afad3f710b1967e69d3b8eee28a811
+    dest: UniversalDetector
+  # gnustep-make is built with native Objective-C exceptions, so XADMaster
+  # must not also define the macro for its own emulation of them.
+  - type: patch
+    path: patches/unar-no-native-objc-exceptions.patch
+    dest: XADMaster
+modules:
+  - name: gnustep-make
+    config-opts:
+      - --enable-native-objc-exceptions
+    cleanup:
+      - /bin
+      - /share/GNUstep/Makefiles
+      - /share/man
+    sources:
+      - type: archive
+        url: https://github.com/gnustep/tools-make/releases/download/make-2_9_3/gnustep-make-2.9.3.tar.gz
+        sha256: 93ca320b706279ebca53760da89d4c3f2bbc547f4723967140a34346d9f04c24
+
+  - name: gnustep-base
+    buildsystem: simple
+    build-commands:
+      # FORTIFY_SOURCE=3 trips gnustep-base, as on Arch.
+      - export CFLAGS="$(echo "$CFLAGS" | sed s/_FORTIFY_SOURCE=3/_FORTIFY_SOURCE=2/)" &&
+        export CXXFLAGS="$(echo "$CXXFLAGS" | sed s/_FORTIFY_SOURCE=3/_FORTIFY_SOURCE=2/)" &&
+        . /app/share/GNUstep/Makefiles/GNUstep.sh &&
+        ./configure --prefix=/app --disable-zeroconf --disable-tls &&
+        make &&
+        make install
+    cleanup:
+      - /bin
+      - /include
+      - /share/man
+    sources:
+      - type: archive
+        url: https://github.com/gnustep/libs-base/releases/download/base-1_31_1/gnustep-base-1.31.1.tar.gz
+        sha256: e7546f1c978a7c75b676953a360194a61e921cb45a4804497b4f346a460545cd
+      - type: patch
+        path: patches/gnustep-base-gcc15.patch

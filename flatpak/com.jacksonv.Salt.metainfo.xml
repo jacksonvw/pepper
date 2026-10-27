@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>com.jacksonv.Salt</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+
+  <name>Salt</name>
+  <summary>Comic and image-set viewer</summary>
+  <developer id="com.jacksonv">
+    <name>Jackson Vander Wal</name>
+  </developer>
+
+  <description>
+    <p>
+      Salt opens a comic archive or a folder of images and scrolls through the
+      set, down the page or side by side. There is no menu bar or toolbar:
+      everything lives in the right-click menu, including Preferences, where
+      the window can turn translucent with KWin's blur behind it.
+    </p>
+    <ul>
+      <li>Opens .cbz, .cbr, .zip and .tar archives (plain, gzip, bzip2 or xz), or a folder of images, recognising misnamed archives by their contents</li>
+      <li>Reads vertically or side by side, fits to width, height or both, and scrolls continuously or a page at a time</li>
+      <li>Decodes pages on demand, so memory stays flat however long the set is</li>
+      <li>Spots part-downloaded archives, and points out a zip of issues or a folder of chapters</li>
+      <li>Fullscreen, and a minimal mode that hides the status bar</li>
+      <li>Opens files dragged onto the window, and says why one won't open instead of closing</li>
+    </ul>
+  </description>
+
+  <launchable type="desktop-id">com.jacksonv.Salt.desktop</launchable>
+  <provides>
+    <binary>salt</binary>
+  </provides>
+
+  <url type="homepage">https://github.com/jacksonvw/pepper</url>
+  <url type="bugtracker">https://github.com/jacksonvw/pepper/issues</url>
+  <url type="vcs-browser">https://github.com/jacksonvw/pepper</url>
+
+  <screenshots>
+    <screenshot type="default">
+      <image>https://raw.githubusercontent.com/jacksonvw/pepper/main/docs/screenshots/salt.png</image>
+      <caption>A folder of posters, side by side</caption>
+    </screenshot>
+  </screenshots>
+
+  <supports>
+    <control>pointing</control>
+    <control>keyboard</control>
+  </supports>
+  <content_rating type="oars-1.1"/>
+
+  <releases>
+    <release version="0.2.0" date="2026-10-26"/>
+  </releases>
+</component>

@@ -1,0 +1,69 @@
+# Salt as a Flatpak: KDE's runtime, for Plasma's own Qt, image plugins and
+# KWindowSystem, plus Qt's PySide6 base app, and The Unarchiver for CBR.
+# Build and install from the repository root:
+#   flatpak run org.flatpak.Builder --user --install --force-clean \
+#       build/flatpak flatpak/com.jacksonv.Salt.yml
+app-id: com.jacksonv.Salt
+runtime: org.kde.Platform
+runtime-version: '6.11'
+sdk: org.kde.Sdk
+base: io.qt.PySide.BaseApp
+base-version: '6.11'
+command: salt
+finish-args:
+  - --share=ipc
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+  # Read-only, to open any archive or folder the file manager or Ctrl+O
+  # hands over, including on removable drives, and to look around it for
+  # the part-downloaded and nested sets Salt points out.
+  - --filesystem=host:ro
+  # Plasma's colour scheme and fonts.
+  - --filesystem=xdg-config/kdeglobals:ro
+build-options:
+  env:
+    # Read by cleanup-BaseApp.sh: Salt uses neither.
+    BASEAPP_REMOVE_WEBENGINE: '1'
+    BASEAPP_DISABLE_NUMPY: '1'
+cleanup:
+  # The base app's build tooling: headers, Qt's qmake specs, and the LLVM
+  # that shiboken's binding generator runs on.
+  - /include
+  - /mkspecs
+  - /lib/cmake
+  - /lib/libLLVM*
+  - /lib/libclang*
+  - /bin/shiboken6*
+  - /lib/python3*/site-packages/shiboken6_generator*
+cleanup-commands:
+  - /app/cleanup-BaseApp.sh
+  - rm -f /app/cleanup-BaseApp*.sh
+modules:
+  - unar.yml
+
+  - name: salt
+    buildsystem: simple
+    build-commands:
+      - mkdir -p /app/share/salt
+      - cp -r viewer_core salt /app/share/salt/
+      - rm -rf /app/share/salt/*/tests
+      - find /app/share/salt -name __pycache__ -prune -exec rm -rf {} +
+      # By hash: the deployed files' timestamps don't survive installation.
+      - python3 -m compileall -q --invalidation-mode checked-hash /app/share/salt
+      - install -Dm755 flatpak/launch.sh /app/bin/salt
+      - install -Dm644 salt/resources/salt.svg
+          /app/share/icons/hicolor/scalable/apps/com.jacksonv.Salt.svg
+      # The checkout's entry, with the Flatpak's command and icon.
+      - sed -e 's|^Exec=.*|Exec=salt %F|'
+            -e 's|^Icon=.*|Icon=com.jacksonv.Salt|'
+            desktop/salt.desktop.in > com.jacksonv.Salt.desktop
+      - install -Dm644 -t /app/share/applications com.jacksonv.Salt.desktop
+      - install -Dm644 -t /app/share/metainfo flatpak/com.jacksonv.Salt.metainfo.xml
+    sources:
+      - type: dir
+        path: ..
+        skip:
+          - .git
+          - .flatpak-builder
+          - build

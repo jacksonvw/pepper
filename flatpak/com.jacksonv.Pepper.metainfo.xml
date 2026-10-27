@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>com.jacksonv.Pepper</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+
+  <name>Pepper</name>
+  <summary>Minimal image viewer</summary>
+  <developer id="com.jacksonv">
+    <name>Jackson Vander Wal</name>
+  </developer>
+
+  <description>
+    <p>
+      Pepper opens one image and gets out of the way: no toolbar, no library,
+      just the picture and a status bar you can hide. Everything else lives in
+      the right-click menu, including Preferences, where the window can turn
+      translucent with KWin's blur behind it.
+    </p>
+    <ul>
+      <li>Opens anything Qt and KDE's image plugins can read, including WebP, AVIF, JPEG XL, TIFF, PSD and SVG</li>
+      <li>Plays animated GIF and WebP, and draws SVGs sharp even when they fill the screen</li>
+      <li>Zoom with the wheel or the keys, actual size, fit to window, and drag to pan</li>
+      <li>Opens images at fit, shrink-to-fit or actual size, optionally resizing the window to match</li>
+      <li>Fullscreen, and a minimal mode that hides the status bar</li>
+      <li>Opens files dragged onto the window, and says why one won't open instead of closing</li>
+    </ul>
+  </description>
+
+  <launchable type="desktop-id">com.jacksonv.Pepper.desktop</launchable>
+  <provides>
+    <binary>pepper</binary>
+  </provides>
+
+  <url type="homepage">https://github.com/jacksonvw/pepper</url>
+  <url type="bugtracker">https://github.com/jacksonvw/pepper/issues</url>
+  <url type="vcs-browser">https://github.com/jacksonvw/pepper</url>
+
+  <screenshots>
+    <screenshot type="default">
+      <image>https://raw.githubusercontent.com/jacksonvw/pepper/main/docs/screenshots/pepper.png</image>
+      <caption>An illustration, with its size and zoom in the status bar</caption>
+    </screenshot>
+  </screenshots>
+
+  <supports>
+    <control>pointing</control>
+    <control>keyboard</control>
+  </supports>
+  <content_rating type="oars-1.1"/>
+
+  <releases>
+    <release version="0.2.0" date="2026-10-26"/>
+  </releases>
+</component>
