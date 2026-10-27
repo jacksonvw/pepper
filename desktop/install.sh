@@ -11,6 +11,9 @@
 #   ~/.local/share/icons/hicolor/scalable/apps/{pepper,salt}.svg
 #   ~/.config/mimeapps.list                              (default-application entries)
 #
+# With --flatpak, the Pepper and Salt Flatpaks bring their own launchers,
+# entries and icons, so this only makes them the defaults, for the same types.
+#
 # Run from anywhere — paths resolve relative to the suite root. Safe to
 # re-run; re-run it after moving the checkout. Installs no packages —
 # README.md has the dnf line.
@@ -35,33 +38,47 @@ SALT_TYPES=(
     application/x-tar application/gzip application/x-bzip2 application/x-xz
 )
 
-mkdir -p "${BIN_DIR}" "${APPS_DIR}" "${ICON_DIR}"
+if [[ "${1:-}" == "--flatpak" ]]; then
+    PEPPER_ENTRY=com.jacksonv.Pepper.desktop
+    SALT_ENTRY=com.jacksonv.Salt.desktop
+    for id in com.jacksonv.Pepper com.jacksonv.Salt; do
+        if ! flatpak info "${id}" >/dev/null 2>&1; then
+            echo "The ${id} Flatpak isn't installed; README.md has the build line." >&2
+            exit 1
+        fi
+    done
+else
+    PEPPER_ENTRY=pepper.desktop
+    SALT_ENTRY=salt.desktop
 
-for app in pepper salt; do
-    # --- Launcher: a symlink, so it always runs this checkout ---
-    if [[ -e "${BIN_DIR}/${app}" && ! -L "${BIN_DIR}/${app}" ]]; then
-        echo "${BIN_DIR}/${app} exists and isn't a symlink; move it aside and re-run." >&2
-        exit 1
+    mkdir -p "${BIN_DIR}" "${APPS_DIR}" "${ICON_DIR}"
+
+    for app in pepper salt; do
+        # --- Launcher: a symlink, so it always runs this checkout ---
+        if [[ -e "${BIN_DIR}/${app}" && ! -L "${BIN_DIR}/${app}" ]]; then
+            echo "${BIN_DIR}/${app} exists and isn't a symlink; move it aside and re-run." >&2
+            exit 1
+        fi
+        ln -sfn "${PROJECT_ROOT}/bin/${app}" "${BIN_DIR}/${app}"
+        echo "Linked launcher: ${BIN_DIR}/${app}"
+
+        # --- Icon (the entry says Icon=${app}) ---
+        cp "${PROJECT_ROOT}/${app}/resources/${app}.svg" "${ICON_DIR}/${app}.svg"
+        echo "Wrote icon: ${ICON_DIR}/${app}.svg"
+
+        # --- .desktop entry: substitute the absolute project root into Exec ---
+        sed "s|@PROJECT_ROOT@|${PROJECT_ROOT}|g" "${SCRIPT_DIR}/${app}.desktop.in" \
+            > "${APPS_DIR}/${app}.desktop"
+        echo "Wrote desktop entry: ${APPS_DIR}/${app}.desktop"
+    done
+
+    if command -v update-desktop-database >/dev/null 2>&1; then
+        update-desktop-database "${APPS_DIR}"
+        echo "Refreshed desktop database"
     fi
-    ln -sfn "${PROJECT_ROOT}/bin/${app}" "${BIN_DIR}/${app}"
-    echo "Linked launcher: ${BIN_DIR}/${app}"
-
-    # --- Icon (the entry says Icon=${app}) ---
-    cp "${PROJECT_ROOT}/${app}/resources/${app}.svg" "${ICON_DIR}/${app}.svg"
-    echo "Wrote icon: ${ICON_DIR}/${app}.svg"
-
-    # --- .desktop entry: substitute the absolute project root into Exec ---
-    sed "s|@PROJECT_ROOT@|${PROJECT_ROOT}|g" "${SCRIPT_DIR}/${app}.desktop.in" \
-        > "${APPS_DIR}/${app}.desktop"
-    echo "Wrote desktop entry: ${APPS_DIR}/${app}.desktop"
-done
-
-if command -v update-desktop-database >/dev/null 2>&1; then
-    update-desktop-database "${APPS_DIR}"
-    echo "Refreshed desktop database"
-fi
-if command -v gtk-update-icon-cache >/dev/null 2>&1; then
-    gtk-update-icon-cache -t -f "${DATA_HOME}/icons/hicolor" 2>/dev/null || true
+    if command -v gtk-update-icon-cache >/dev/null 2>&1; then
+        gtk-update-icon-cache -t -f "${DATA_HOME}/icons/hicolor" 2>/dev/null || true
+    fi
 fi
 
 # --- Default applications ---
@@ -70,10 +87,10 @@ fi
 # still exits 0 when it fails to write mimeapps.list. A re-run may prune the
 # redundant [Added Associations] lines; [Default Applications] is what decides.
 for type in "${PEPPER_TYPES[@]}"; do
-    gio mime "${type}" pepper.desktop >/dev/null
+    gio mime "${type}" "${PEPPER_ENTRY}" >/dev/null
 done
 for type in "${SALT_TYPES[@]}"; do
-    gio mime "${type}" salt.desktop >/dev/null
+    gio mime "${type}" "${SALT_ENTRY}" >/dev/null
 done
 echo "Set Pepper as the default for ${#PEPPER_TYPES[@]} MIME types and Salt for ${#SALT_TYPES[@]}"
 
@@ -82,10 +99,12 @@ if command -v kbuildsycoca6 >/dev/null 2>&1; then
     kbuildsycoca6 >/dev/null 2>&1 || true
 fi
 
-case ":${PATH}:" in
-    *":${BIN_DIR}:"*) ;;
-    *) echo "Note: ${BIN_DIR} isn't on PATH, so the pepper and salt commands won't resolve (the desktop entries don't need it)." ;;
-esac
+if [[ "${PEPPER_ENTRY}" == pepper.desktop ]]; then
+    case ":${PATH}:" in
+        *":${BIN_DIR}:"*) ;;
+        *) echo "Note: ${BIN_DIR} isn't on PATH, so the pepper and salt commands won't resolve (the desktop entries don't need it)." ;;
+    esac
+fi
 
 echo
 echo "Done. Open an image to view it in Pepper, or a .cbz/.cbr to read it in Salt."
