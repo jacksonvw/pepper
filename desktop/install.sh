@@ -29,13 +29,13 @@ APPS_DIR="${DATA_HOME}/applications"
 ICON_DIR="${DATA_HOME}/icons/hicolor/scalable/apps"
 
 # Defaults are set for these types only. Salt's entry also lists
-# application/zip and inode/directory so it appears under Open With, but
-# .zip files stay with the archive manager and folders with the file manager.
+# application/zip, application/x-tar and inode/directory so it appears under
+# Open With, but those general-purpose archives stay with the archive manager
+# and folders with the file manager.
 PEPPER_TYPES=(image/png image/jpeg image/gif image/bmp image/webp image/tiff image/svg+xml)
 SALT_TYPES=(
     application/x-cbz application/vnd.comicbook+zip
     application/x-cbr application/vnd.comicbook-rar
-    application/x-tar application/gzip application/x-bzip2 application/x-xz
 )
 
 if [[ "${1:-}" == "--flatpak" ]]; then

@@ -10,4 +10,4 @@ Terminal=false
 StartupNotify=true
 StartupWMClass=Salt
 Categories=Graphics;Viewer;
-MimeType=application/zip;application/x-cbz;application/vnd.comicbook+zip;application/x-cbr;application/vnd.comicbook-rar;application/x-tar;application/gzip;application/x-bzip2;application/x-xz;inode/directory;
+MimeType=application/zip;application/x-cbz;application/vnd.comicbook+zip;application/x-cbr;application/vnd.comicbook-rar;application/x-tar;inode/directory;

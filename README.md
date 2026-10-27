@@ -88,9 +88,9 @@ and `~/.config/salt/`.
 
 `desktop/install.sh` links `bin/pepper` and `bin/salt` into `~/bin`,
 installs both desktop entries and icons, and makes Pepper the default for
-PNG, JPEG, GIF, BMP, WebP, TIFF and SVG, and Salt the default for `.cbz`,
-`.cbr` and tar, gzip, bzip2 and xz files. Plain `.zip` files and folders
-keep their current handlers, with Salt offered under Open With. The script
+PNG, JPEG, GIF, BMP, WebP, TIFF and SVG, and Salt the default for `.cbz`
+and `.cbr`. Plain `.zip` and `.tar` files and folders keep their current
+handlers, with Salt offered under Open With. The script
 needs no root and is safe to re-run, including after moving the checkout.
 
 On any distribution with Flatpak, SteamOS included, both apps build as
