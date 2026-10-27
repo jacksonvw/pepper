@@ -37,8 +37,9 @@ translucent with KWin's blur behind it.
 
 ## Status
 
-Working on Fedora 44 with KDE Plasma 6 on Wayland. Missing: packages (both run
-from a checkout) and 7z archives.
+Working on Fedora 44 with KDE Plasma 6 on Wayland, run from a checkout, and on
+SteamOS 3.9 as Flatpaks. Missing: a Flathub listing (the Flatpaks build from
+this repository) and 7z archives.
 
 ## Built with
 
@@ -46,13 +47,16 @@ Python 3 and PySide6 (Qt 6), taken from Fedora's RPMs so the windows run on
 Plasma's own Qt: a native Wayland surface, KDE theming and portal file
 dialogs, which a PyPI wheel with its own Qt would lose. KDE's image-format
 plugins add the extra formats, The Unarchiver's `unar` reads CBR, and
-KWindowSystem, called through ctypes, provides the blur.
+KWindowSystem, called through ctypes, provides the blur. The Flatpaks get the
+same from KDE's Flatpak runtime, with PySide6 from Qt's base app and their own
+build of The Unarchiver.
 
 | Directory | What it is |
 |---|---|
 | `pepper/` | The image viewer |
 | `salt/` | The gallery viewer |
 | `viewer_core/` | Shared appearance settings, KWin blur and the Window preferences group |
+| `flatpak/` | The Flatpak manifests and their software-centre metadata |
 
 ## Build and run
 
@@ -88,6 +92,29 @@ PNG, JPEG, GIF, BMP, WebP, TIFF and SVG, and Salt the default for `.cbz`,
 `.cbr` and tar, gzip, bzip2 and xz files. Plain `.zip` files and folders
 keep their current handlers, with Salt offered under Open With. The script
 needs no root and is safe to re-run, including after moving the checkout.
+
+On any distribution with Flatpak, SteamOS included, both apps build as
+Flatpaks instead, with nothing installed outside Flatpak:
+
+```bash
+flatpak install flathub org.flatpak.Builder \
+    org.kde.Platform//6.11 org.kde.Sdk//6.11 io.qt.PySide.BaseApp//6.11
+
+git clone https://github.com/jacksonvw/pepper.git
+cd pepper
+flatpak run org.flatpak.Builder --user --install --force-clean \
+    build/flatpak flatpak/com.jacksonv.Pepper.yml
+flatpak run org.flatpak.Builder --user --install --force-clean \
+    build/flatpak flatpak/com.jacksonv.Salt.yml
+desktop/install.sh --flatpak    # the same defaults, for the Flatpaks
+```
+
+The Flatpaks can read any file but change none. Their logs go to
+`~/.var/app/com.jacksonv.Pepper/cache/pepper.log` and
+`~/.var/app/com.jacksonv.Salt/cache/salt.log`, and their settings live in
+each app's `config/` folder beside it. Moving from a checkout install to the
+Flatpaks, delete `~/.local/share/applications/pepper.desktop` and
+`salt.desktop`, or both versions appear in the app menu.
 
 | Key | Pepper | Salt |
 |---|---|---|
