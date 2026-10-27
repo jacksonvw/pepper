@@ -1,10 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Salt: a stack of pages. A solid front page, and the top and right edges
-     of two pages behind it, each set back three units so every gap is one.
-     Drawn in the colour scheme's text colour, as Breeze's monochrome icons
-     are: Plasma swaps in the current scheme's ColorScheme-Text, and anything
-     that doesn't know the convention uses Breeze's default below. -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16">
+  <!-- Salt: a stack of pages. A solid front page, and the top and right edges
+       of two pages behind it, each set back three units so every gap is one.
+       Drawn in the colour scheme's text colour, as Breeze's monochrome icons
+       are: Plasma swaps in the current scheme's ColorScheme-Text, and anything
+       that doesn't know the convention uses Breeze's default below.
+       The comment sits inside <svg> because file-type sniffing (shared-mime-info,
+       so GdkPixbuf and AppStream) only looks for "<svg" in the first 256 bytes. -->
   <style type="text/css" id="current-color-scheme">.ColorScheme-Text { color: #232629; }</style>
   <rect class="ColorScheme-Text" x="2" y="7" width="7" height="8" rx="1" fill="currentColor"/>
   <path class="ColorScheme-Text" fill="currentColor" d="M 5 6 V 5 Q 5 4 6 4 H 11 Q 12 4 12 5 V 12 H 10 V 6 Z"/>
