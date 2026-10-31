@@ -2,8 +2,7 @@
 # Install Pepper + Salt desktop integration into the user's home directory:
 #   - pepper and salt launchers on PATH, symlinked to this checkout's bin/
 #   - both .desktop entries and their icons
-#   - Pepper as the default for common image types, Salt for comic
-#     archives and tarballs
+#   - Pepper as the default for common image types, Salt for comic archives
 #
 # Files land in:
 #   ~/bin/pepper, ~/bin/salt                             (symlinks)
