@@ -8,6 +8,10 @@
 # Pins /usr/bin/python3: PySide6 comes from Fedora's python3-pyside6 RPM,
 # which is built for the system interpreter. A different python3 earlier on
 # PATH, such as an activated venv, wouldn't have it.
+#
+# -P keeps the folder Pepper was started in off sys.path. Pepper can start
+# from anywhere, and a logging.py there mustn't be imported in place of
+# Python's.
 ROOT="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
 exec env PYTHONPATH="$ROOT" \
-    nohup /usr/bin/python3 -m pepper.main "$@" >/tmp/pepper.log 2>&1 &
+    nohup /usr/bin/python3 -P -m pepper.main "$@" >/tmp/pepper.log 2>&1 &
